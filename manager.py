@@ -496,12 +496,12 @@ def generate_loader(data_dir: Path, catalog: dict[str, Any], validation: bool = 
         "global ASM_LastSuspended := false",
         "#SuspendExempt true",
     ])
-    if manager_hotkey:
-        lines.append(f"{manager_hotkey}::Run('\"' A_AhkPath '\" \"{manager_script}\"')")
     if remote_toggle_hotkey:
         lines.append(f"{remote_toggle_hotkey}::ASM_ToggleRemoteMode()")
+    lines.append("#SuspendExempt false")
+    if manager_hotkey:
+        lines.append(f"{manager_hotkey}::Run('\"' A_AhkPath '\" \"{manager_script}\"')")
     lines.extend([
-        "#SuspendExempt false",
         "ASM_ToggleRemoteMode(*) {",
         "    global ASM_ManualRemoteMode := !ASM_ManualRemoteMode",
         "    ASM_ApplyRemoteMode()",

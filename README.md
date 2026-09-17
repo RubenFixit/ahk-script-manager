@@ -78,8 +78,9 @@ The **Manage Script Sources** window lists each repository once:
 The enable/apply split is intentional: enablement edits the desired script set,
 while applying performs validation and changes the running include-mode loader.
 The generated active loader owns the manager shortcut, so it remains available
-when the manager window is hidden. Saving the shortcut setting applies and
-restarts the loader immediately.
+when the manager window is hidden. It is suspended during Remote Mode along
+with other managed hotkeys. Saving the shortcut setting applies and restarts
+the loader immediately.
 
 The loader automatically pauses managed hotkeys while a configured remote
 client owns the active window, allowing those keystrokes to reach the remote
@@ -87,8 +88,9 @@ computer. The defaults cover classic Remote Desktop (`mstsc.exe`), Microsoft's
 newer Remote Desktop clients (`msrdc.exe` and `msrdcw.exe`), and Omnissa/VMware
 Horizon Client (`horizon-client.exe`, plus the legacy `vmware-view.exe`). Focus another application to restore local
 hotkeys. Windows+Alt+S also toggles Remote Mode manually and remains available
-while managed hotkeys are paused. Both the process list and toggle are editable
-in **Settings**. Remote Mode transitions are silent; AutoHotkey's suspended
+while managed hotkeys are paused; it is the only generated hotkey exempt from
+suspension. Both the process list and toggle are editable in **Settings**.
+Remote Mode transitions are silent; AutoHotkey's suspended
 tray icon provides the unobtrusive status indicator.
 
 ## Repository manifest

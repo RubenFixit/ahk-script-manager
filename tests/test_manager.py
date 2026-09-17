@@ -139,6 +139,8 @@ class LoaderSettingsTests(unittest.TestCase):
             self.assertIn('"vmware-view.exe"', content)
             self.assertIn('"horizon-client.exe"', content)
             self.assertNotIn("TrayTip(", content)
+            self.assertLess(content.index("#!s::ASM_ToggleRemoteMode"), content.index("#SuspendExempt false"))
+            self.assertGreater(content.index("#!m::Run"), content.index("#SuspendExempt false"))
 
     def test_invalid_manager_hotkey_is_rejected(self) -> None:
         with self.assertRaises(manager.ManagerError):
