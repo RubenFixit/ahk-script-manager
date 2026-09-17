@@ -64,7 +64,8 @@ The main window manages scripts discovered from all configured sources:
   process list. Shortcut fields are optional, and automatic detection can be
   disabled without deleting its process list. The manager shortcut defaults to
   **Windows+Alt+M** (`#!m`), and manual Remote Mode defaults to
-  **Windows+Alt+S** (`#!s`). Leave either shortcut blank to disable it.
+  **Windows+Alt+S** (`#!s`). Leave either shortcut blank to disable it. The
+  window includes a compact AutoHotkey shortcut-notation cheat sheet.
 
 The **Manage Script Sources** window lists each repository once:
 

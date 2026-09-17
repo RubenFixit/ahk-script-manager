@@ -396,6 +396,12 @@ ShowSettings() {
         RemoteProcessesEdit := SettingsGui.AddEdit("xm y+4 w460 r6")
         SettingsGui.AddText("xm y+3 c666666", "Enter one executable name per line, such as mstsc.exe or horizon-client.exe.")
 
+        SettingsGui.AddGroupBox("xm y+18 w460 h130", "Shortcut notation cheat sheet")
+        SettingsGui.AddText("xp+12 yp+24 w435", "#  Windows     ^  Ctrl     !  Alt     +  Shift")
+        SettingsGui.AddText("xp y+7 w435", "Examples:  #!m  Windows+Alt+M     ^!.  Ctrl+Alt+Period")
+        SettingsGui.AddText("xp y+7 w435", "Keys: letters, numbers, comma (,), period (.), and F1 through F24")
+        SettingsGui.AddText("xp y+7 w435 c666666", "Combine modifier symbols before the key; leave a shortcut blank to disable it.")
+
         SettingsGui.AddButton("xm y+18 w90 Default", "&Save").OnEvent("Click", (*) => SaveSettings())
         SettingsGui.AddButton("x+8 w90", "Cancel").OnEvent("Click", (*) => SettingsGui.Hide())
         SettingsGui.OnEvent("Close", (*) => SettingsGui.Hide())
