@@ -7,13 +7,28 @@ import unittest
 
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "manager.py"
-SPEC = importlib.util.spec_from_file_location("ahk_repo_manager", MODULE_PATH)
+SPEC = importlib.util.spec_from_file_location("ahk_module_manager", MODULE_PATH)
 assert SPEC and SPEC.loader
 manager = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(manager)
 
 
 class CatalogTests(unittest.TestCase):
+    def test_remote_id_uses_namespace_and_repository(self) -> None:
+        self.assertEqual(
+            manager.derive_repo_id("https://github.com/RubenFixit/ahk-script-library.git"),
+            "rubenfixit-ahk-script-library",
+        )
+
+    def test_nested_namespace_and_ssh_urls(self) -> None:
+        self.assertEqual(
+            manager.derive_repo_id("git@gitlab.com:Company/Tools/AHK-Library.git"),
+            "company-tools-ahk-library",
+        )
+
+    def test_local_id_uses_folder_name(self) -> None:
+        self.assertEqual(manager.derive_repo_id(r"C:\Projects\My Scripts", local=True), "my-scripts")
+
     def test_catalog_round_trip(self) -> None:
         catalog = {
             "version": 1,
@@ -70,4 +85,3 @@ type = "standalone"
 
 if __name__ == "__main__":
     unittest.main()
-

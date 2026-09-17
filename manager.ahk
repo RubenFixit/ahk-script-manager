@@ -6,11 +6,11 @@ global ScriptList := 0
 global StatusText := 0
 
 A_TrayMenu.Delete()
-A_TrayMenu.Add("Open Manager", (*) => ShowManager())
+A_TrayMenu.Add("Open Module Manager", (*) => ShowManager())
 A_TrayMenu.Add("Activate Enabled Scripts", (*) => ActivateScripts())
 A_TrayMenu.Add()
 A_TrayMenu.Add("Exit", (*) => ExitApp())
-A_TrayMenu.Default := "Open Manager"
+A_TrayMenu.Default := "Open Module Manager"
 
 InitializeManager()
 ShowManager()
@@ -18,7 +18,7 @@ ShowManager()
 InitializeManager() {
     result := RunBackend("init")
     if !result.ok
-        MsgBox(result.message, "AHK Repository Manager", "Iconx")
+        MsgBox(result.message, "AutoHotkey Module Manager", "Iconx")
 }
 
 ShowManager() {
@@ -29,7 +29,7 @@ ShowManager() {
         return
     }
 
-    ManagerGui := Gui("+Resize", "AutoHotkey Repository Manager")
+    ManagerGui := Gui("+Resize", "AutoHotkey Module Manager")
     ManagerGui.SetFont("s10", "Segoe UI")
     ScriptList := ManagerGui.AddListView("xm ym w900 r18", ["Repo ID", "Script ID", "Repository", "Script", "Type", "Enabled", "Status", "Location"])
     ScriptList.ModifyCol(1, 0)
@@ -43,7 +43,7 @@ ShowManager() {
     ScriptList.OnEvent("DoubleClick", (*) => ToggleSelected())
 
     ManagerGui.AddButton("xm w90", "&Refresh").OnEvent("Click", (*) => RefreshList())
-    ManagerGui.AddButton("x+8 w120", "&Add repository").OnEvent("Click", (*) => AddRepository())
+    ManagerGui.AddButton("x+8 w120", "&Add source").OnEvent("Click", (*) => AddSource())
     ManagerGui.AddButton("x+8 w90", "&Sync").OnEvent("Click", (*) => SyncSelected())
     ManagerGui.AddButton("x+8 w110", "&Enable/Disable").OnEvent("Click", (*) => ToggleSelected())
     ManagerGui.AddButton("x+8 w90", "&Activate").OnEvent("Click", (*) => ActivateScripts())
@@ -67,7 +67,7 @@ ResizeManager(guiObj, minMax, width, height) {
 
 BackendCommandPrefix(responsePath, tablePath := "") {
     backend := A_ScriptDir "\manager.py"
-    dataDir := EnvGet("LOCALAPPDATA") "\AhkRepoManager"
+    dataDir := ManagerDataDir()
     command := 'uv run --script "' backend '" --data-dir "' dataDir '" --response "' responsePath '"'
     if (tablePath != "")
         command .= ' --table "' tablePath '"'
@@ -75,7 +75,7 @@ BackendCommandPrefix(responsePath, tablePath := "") {
 }
 
 RunBackend(arguments, tablePath := "") {
-    responsePath := A_Temp "\ahk-repo-manager-response-" A_TickCount ".json"
+    responsePath := A_Temp "\ahk-module-manager-response-" A_TickCount ".json"
     try FileDelete(responsePath)
     command := BackendCommandPrefix(responsePath, tablePath) " " arguments
     try exitCode := RunWait(command, A_ScriptDir, "Hide")
@@ -90,7 +90,10 @@ RunBackend(arguments, tablePath := "") {
     message := "Backend command failed."
     if RegExMatch(payload, 's)"message"\s*:\s*"((?:\\.|[^"\\])*)"', &match)
         message := JsonUnescape(match[1])
-    return {ok: !!ok, message: message, exitCode: exitCode}
+    repoId := ""
+    if RegExMatch(payload, 's)"repo_id"\s*:\s*"((?:\\.|[^"\\])*)"', &repoMatch)
+        repoId := JsonUnescape(repoMatch[1])
+    return {ok: !!ok, message: message, repoId: repoId, exitCode: exitCode}
 }
 
 JsonUnescape(value) {
@@ -111,12 +114,12 @@ SetStatus(message, isError := false) {
     if IsObject(StatusText)
         StatusText.Text := message
     if isError
-        MsgBox(message, "AHK Repository Manager", "Iconx")
+        MsgBox(message, "AutoHotkey Module Manager", "Iconx")
 }
 
 RefreshList() {
     global ScriptList
-    tablePath := A_Temp "\ahk-repo-manager-list-" A_TickCount ".tsv"
+    tablePath := A_Temp "\ahk-module-manager-list-" A_TickCount ".tsv"
     try FileDelete(tablePath)
     result := RunBackend("list", tablePath)
     if !result.ok {
@@ -143,7 +146,7 @@ SelectedRow(requireScript := false) {
     global ScriptList
     row := ScriptList.GetNext()
     if !row {
-        MsgBox("Select a repository or script first.", "AHK Repository Manager", "Icon!")
+        MsgBox("Select a repository or script first.", "AutoHotkey Module Manager", "Icon!")
         return 0
     }
     info := {
@@ -154,30 +157,27 @@ SelectedRow(requireScript := false) {
         path: ScriptList.GetText(row, 8)
     }
     if requireScript && info.scriptId = "" {
-        MsgBox("The selected repository has no available script entry.", "AHK Repository Manager", "Icon!")
+        MsgBox("The selected repository has no available script entry.", "AutoHotkey Module Manager", "Icon!")
         return 0
     }
     return info
 }
 
-AddRepository() {
-    urlResult := InputBox("Git URL or local repository path:", "Add repository", "w600")
+AddSource() {
+    urlResult := InputBox("Git URL or local folder containing the module collection:", "Add source", "w600")
     if urlResult.Result != "OK"
         return
-    idResult := InputBox("Short repository ID (letters, numbers, dots, dashes, or underscores):", "Add repository")
-    if idResult.Result != "OK"
-        return
-    refResult := InputBox("Branch, tag, or commit. Leave blank to use the remote default:", "Add repository")
+    refResult := InputBox("Branch, tag, or commit. Leave blank to use the remote default:", "Add source")
     if refResult.Result != "OK"
         return
-    manifestResult := InputBox("Manifest path inside the repository:", "Add repository",, "ahk-library.toml")
+    manifestResult := InputBox("Manifest path inside the source repository:", "Add source",, "ahk-library.toml")
     if manifestResult.Result != "OK"
         return
 
     isLocal := DirExist(urlResult.Value)
-    prompt := "Trust this repository for include mode?`n`nOnly choose Yes for code you trust; included scripts share one AutoHotkey process."
-    trusted := MsgBox(prompt, "Repository trust", "YesNo Icon?") = "Yes"
-    arguments := "add " QuoteArg(idResult.Value) " " QuoteArg(urlResult.Value)
+    prompt := "Trust this module source for include mode?`n`nOnly choose Yes for code you trust; included scripts share one AutoHotkey process."
+    trusted := MsgBox(prompt, "Module source trust", "YesNo Icon?") = "Yes"
+    arguments := "add-url " QuoteArg(urlResult.Value)
     if refResult.Value != ""
         arguments .= " --ref " QuoteArg(refResult.Value)
     arguments .= " --manifest " QuoteArg(manifestResult.Value)
@@ -188,7 +188,7 @@ AddRepository() {
     result := RunBackend(arguments)
     SetStatus(result.message, !result.ok)
     if result.ok {
-        syncResult := RunBackend("sync " QuoteArg(idResult.Value))
+        syncResult := RunBackend("sync " QuoteArg(result.repoId))
         SetStatus(syncResult.message, !syncResult.ok)
         RefreshList()
     }
@@ -235,5 +235,17 @@ OpenSelectedFolder() {
     if DirExist(info.path)
         Run('explorer.exe "' info.path '"')
     else
-        MsgBox("Repository directory does not exist yet.", "AHK Repository Manager", "Icon!")
+        MsgBox("Repository directory does not exist yet.", "AutoHotkey Module Manager", "Icon!")
+}
+
+ManagerDataDir() {
+    localAppData := EnvGet("LOCALAPPDATA")
+    currentDir := localAppData "\AhkModuleManager"
+    legacyDir := localAppData "\AhkRepoManager"
+    if !DirExist(currentDir) && DirExist(legacyDir) {
+        ; Copy instead of moving because an active generated loader may still
+        ; have files open in the legacy directory during an upgrade.
+        try DirCopy(legacyDir, currentDir, true)
+    }
+    return currentDir
 }

@@ -1,6 +1,6 @@
-# AutoHotkey Repository Manager
+# AutoHotkey Module Manager
 
-AutoHotkey Repository Manager is a Windows desktop manager for AutoHotkey v2
+AutoHotkey Module Manager is a Windows desktop manager for AutoHotkey v2
 scripts distributed across Git repositories. One repository may publish many
 independently selectable scripts through an `ahk-library.toml` manifest.
 
@@ -24,9 +24,13 @@ The application uses:
 
 Run `manager.ahk` with AutoHotkey v2. Its machine-local catalog, managed clones,
 generated loader, and rollback state are stored under
-`%LOCALAPPDATA%\AhkRepoManager`.
+`%LOCALAPPDATA%\AhkModuleManager`.
 
-Use **Add repository** to register either a Git URL or an existing local clone.
+Use **Add source** to register either a Git URL or an existing local clone that
+publishes one or more AutoHotkey modules.
+Remote repository IDs are derived from their namespace and repository name, so
+`https://github.com/RubenFixit/ahk-script-library.git` becomes
+`rubenfixit-ahk-script-library`. Local repositories use their folder name.
 Choose trust only for repositories whose scripts may be combined into the
 generated `#Include` loader. Third-party scripts should normally use
 `type = "standalone"` in their manifest.
@@ -76,4 +80,3 @@ Review third-party changes before enabling or launching them.
 ## License
 
 MIT
-

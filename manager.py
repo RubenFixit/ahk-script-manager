@@ -3,7 +3,7 @@
 # dependencies = []
 # ///
 
-"""Backend for the AutoHotkey Repository Manager.
+"""Backend for the AutoHotkey Module Manager.
 
 The backend owns repository synchronization, TOML manifests, local state,
 loader generation, and validation. The AutoHotkey front end invokes one command
@@ -22,6 +22,7 @@ import subprocess
 import sys
 import tomllib
 from typing import Any
+from urllib.parse import urlsplit
 
 
 CATALOG_VERSION = 1
@@ -109,6 +110,32 @@ def find_repo(catalog: dict[str, Any], repo_id: str) -> dict[str, Any]:
 def validate_repo_id(repo_id: str) -> None:
     if not REPOSITORY_ID.fullmatch(repo_id):
         raise ManagerError("Repository IDs may contain letters, numbers, dots, dashes, and underscores")
+
+
+def derive_repo_id(url: str, local: bool = False) -> str:
+    """Create a stable catalog ID from a local path or remote Git URL."""
+    raw = url.strip().rstrip("/\\")
+    if local:
+        parts = [Path(raw).name]
+    else:
+        # Support scp-style SSH URLs such as git@github.com:owner/repo.git.
+        scp_match = re.match(r"^[^@\s]+@[^:\s]+:(.+)$", raw)
+        if scp_match:
+            remote_path = scp_match.group(1)
+        else:
+            parsed = urlsplit(raw)
+            remote_path = parsed.path if parsed.scheme or parsed.netloc else raw
+        parts = [part for part in re.split(r"[/\\]+", remote_path) if part]
+
+    if not parts:
+        raise ManagerError("Could not derive a repository ID from the URL")
+    parts[-1] = re.sub(r"\.git$", "", parts[-1], flags=re.IGNORECASE)
+    repo_id = "-".join(parts)
+    repo_id = re.sub(r"[^A-Za-z0-9]+", "-", repo_id).strip("-").lower()
+    if not repo_id:
+        raise ManagerError("Could not derive a repository ID from the URL")
+    validate_repo_id(repo_id)
+    return repo_id
 
 
 def is_local_repo(repo: dict[str, Any]) -> bool:
@@ -413,6 +440,14 @@ def build_parser() -> argparse.ArgumentParser:
     add.add_argument("--local", action="store_true")
     add.add_argument("--trusted", action="store_true")
 
+    add_url = subparsers.add_parser("add-url")
+    add_url.add_argument("url")
+    add_url.add_argument("--id", dest="repo_id", default="")
+    add_url.add_argument("--ref", default="")
+    add_url.add_argument("--manifest", default=DEFAULT_MANIFEST)
+    add_url.add_argument("--local", action="store_true")
+    add_url.add_argument("--trusted", action="store_true")
+
     remove = subparsers.add_parser("remove")
     remove.add_argument("repo_id")
 
@@ -446,15 +481,16 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
         if args.table:
             write_table(args.table, rows)
         return {"message": f"Found {len(rows)} script entries", "rows": rows}
-    if args.command == "add":
-        validate_repo_id(args.repo_id)
-        if any(repo.get("id") == args.repo_id for repo in catalog.get("repositories", [])):
-            raise ManagerError(f"Repository ID already exists: {args.repo_id}")
+    if args.command in {"add", "add-url"}:
+        repo_id = args.repo_id or derive_repo_id(args.url, args.local)
+        validate_repo_id(repo_id)
+        if any(repo.get("id") == repo_id for repo in catalog.get("repositories", [])):
+            raise ManagerError(f"Repository ID already exists: {repo_id}")
         if args.local and not Path(args.url).expanduser().is_dir():
             raise ManagerError(f"Local repository does not exist: {args.url}")
         catalog.setdefault("repositories", []).append(
             {
-                "id": args.repo_id,
+                "id": repo_id,
                 "url": args.url,
                 "ref": args.ref,
                 "manifest": args.manifest,
@@ -465,7 +501,7 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
             }
         )
         save_catalog(catalog_path, catalog)
-        return {"message": f"Added repository {args.repo_id}"}
+        return {"message": f"Added repository {repo_id}", "repo_id": repo_id}
     if args.command == "remove":
         before = len(catalog.get("repositories", []))
         catalog["repositories"] = [repo for repo in catalog.get("repositories", []) if repo.get("id") != args.repo_id]
