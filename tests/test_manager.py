@@ -147,6 +147,10 @@ class LoaderSettingsTests(unittest.TestCase):
         with self.assertRaises(manager.ManagerError):
             manager.validate_manager_hotkey("Run('bad')")
 
+    def test_punctuation_manager_hotkeys_are_allowed(self) -> None:
+        manager.validate_manager_hotkey("^!.")
+        manager.validate_manager_hotkey("^!,")
+
     def test_remote_processes_are_normalized_and_validated(self) -> None:
         self.assertEqual(manager.normalize_remote_processes("MSTSC.EXE, vmware-view.exe, mstsc.exe"), ["mstsc.exe", "vmware-view.exe"])
         with self.assertRaises(manager.ManagerError):

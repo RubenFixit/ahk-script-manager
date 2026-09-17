@@ -33,7 +33,7 @@ DEFAULT_REMOTE_AUTO_ENABLED = True
 LEGACY_REMOTE_PROCESSES = ["mstsc.exe", "msrdc.exe", "msrdcw.exe", "vmware-view.exe"]
 DEFAULT_REMOTE_PROCESSES = ["mstsc.exe", "msrdc.exe", "msrdcw.exe", "horizon-client.exe", "vmware-view.exe"]
 REPOSITORY_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
-HOTKEY = re.compile(r"^[#!+^]*([A-Za-z0-9]|F(?:[1-9]|1[0-9]|2[0-4]))$")
+HOTKEY = re.compile(r"^[#!+^]*([A-Za-z0-9,.]|F(?:[1-9]|1[0-9]|2[0-4]))$")
 PROCESS_NAME = re.compile(r"^[A-Za-z0-9._-]+\.exe$", re.IGNORECASE)
 
 
@@ -466,7 +466,7 @@ def ahk_single_quoted(value: str) -> str:
 
 def validate_manager_hotkey(value: str) -> None:
     if value and not HOTKEY.fullmatch(value):
-        raise ManagerError("Manager shortcut must use AutoHotkey notation such as #!m, or be blank to disable it")
+        raise ManagerError("Manager shortcut must use AutoHotkey notation such as #!m or ^!., or be blank to disable it")
 
 
 def normalize_remote_processes(value: str | list[str]) -> list[str]:
