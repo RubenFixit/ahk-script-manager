@@ -372,11 +372,22 @@ ApplyChanges() {
 }
 
 ShowSettings() {
-    prompt := "Manager shortcut in AutoHotkey notation:`n`n#!m means Windows+Alt+M.`nLeave blank to disable the shortcut."
-    result := InputBox(prompt, "Script Manager settings", "w460", CurrentManagerHotkey())
-    if result.Result != "OK"
+    managerPrompt := "Manager shortcut in AutoHotkey notation:`n`n#!m means Windows+Alt+M.`nLeave blank to disable the shortcut."
+    managerResult := InputBox(managerPrompt, "Script Manager settings", "w460", CurrentCatalogSetting("manager_hotkey", "#!m"))
+    if managerResult.Result != "OK"
         return
-    saveResult := RunBackend("set-manager-hotkey " QuoteArg(result.Value))
+    togglePrompt := "Manual Remote Mode shortcut:`n`n#!s means Windows+Alt+S.`nLeave blank to disable the manual toggle."
+    toggleResult := InputBox(togglePrompt, "Script Manager settings", "w460", CurrentCatalogSetting("remote_toggle_hotkey", "#!s"))
+    if toggleResult.Result != "OK"
+        return
+    processPrompt := "Remote client process names, separated by commas:`n`nManaged hotkeys pause automatically while one is the active window.`nLeave blank to disable automatic Remote Mode."
+    processResult := InputBox(processPrompt, "Script Manager settings", "w600", CurrentRemoteProcesses())
+    if processResult.Result != "OK"
+        return
+    arguments := "set-settings --manager-hotkey " QuoteArg(managerResult.Value)
+    arguments .= " --remote-toggle-hotkey " QuoteArg(toggleResult.Value)
+    arguments .= " --remote-processes " QuoteArg(processResult.Value)
+    saveResult := RunBackend(arguments)
     if !saveResult.ok {
         SetStatus(saveResult.message, true)
         return
@@ -385,11 +396,26 @@ ShowSettings() {
     ApplyChanges()
 }
 
-CurrentManagerHotkey() {
+CurrentCatalogSetting(name, defaultValue) {
     catalogPath := ManagerDataDir() "\catalog.toml"
-    if FileExist(catalogPath) && RegExMatch(FileRead(catalogPath, "UTF-8"), 'm)^manager_hotkey\s*=\s*"([#!+^A-Za-z0-9]*)"', &match)
+    if FileExist(catalogPath) && RegExMatch(FileRead(catalogPath, "UTF-8"), 'm)^' name '\s*=\s*"([#!+^A-Za-z0-9]*)"', &match)
         return match[1]
-    return "#!m"
+    return defaultValue
+}
+
+CurrentRemoteProcesses() {
+    catalogPath := ManagerDataDir() "\catalog.toml"
+    if !FileExist(catalogPath)
+        return "mstsc.exe, msrdc.exe, msrdcw.exe, vmware-view.exe"
+    if !RegExMatch(FileRead(catalogPath, "UTF-8"), 'm)^remote_processes\s*=\s*\[(.*)\]', &arrayMatch)
+        return "mstsc.exe, msrdc.exe, msrdcw.exe, vmware-view.exe"
+    values := ""
+    position := 1
+    while position := RegExMatch(arrayMatch[1], '"([^"]+)"', &item, position) {
+        values .= (values = "" ? "" : ", ") item[1]
+        position += item.Len(0)
+    }
+    return values
 }
 
 LaunchSelected() {

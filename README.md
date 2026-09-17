@@ -59,8 +59,10 @@ The main window manages scripts discovered from all configured sources:
 - **Launch standalone** starts the selected `standalone` script in its own
   AutoHotkey process. Include-mode scripts are applied with **Apply changes**.
 - **Open folder** opens the selected script's source directory.
-- **Settings** changes the manager shortcut. The default is **Windows+Alt+M**
-  (`#!m` in AutoHotkey notation); leave it blank to disable the shortcut.
+- **Settings** changes the manager shortcut, manual Remote Mode shortcut, and
+  the remote-client process list. The manager shortcut defaults to
+  **Windows+Alt+M** (`#!m`), and manual Remote Mode defaults to
+  **Windows+Alt+S** (`#!s`). Leave either shortcut blank to disable it.
 
 The **Manage Script Sources** window lists each repository once:
 
@@ -78,6 +80,15 @@ while applying performs validation and changes the running include-mode loader.
 The generated active loader owns the manager shortcut, so it remains available
 when the manager window is hidden. Saving the shortcut setting applies and
 restarts the loader immediately.
+
+The loader automatically pauses managed hotkeys while a configured remote
+client owns the active window, allowing those keystrokes to reach the remote
+computer. The defaults cover classic Remote Desktop (`mstsc.exe`), Microsoft's
+newer Remote Desktop clients (`msrdc.exe` and `msrdcw.exe`), and Omnissa/VMware
+Horizon Client (`vmware-view.exe`). Focus another application to restore local
+hotkeys. Windows+Alt+S also toggles Remote Mode manually and remains available
+while managed hotkeys are paused. Both the process list and toggle are editable
+in **Settings**.
 
 ## Repository manifest
 

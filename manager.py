@@ -28,8 +28,11 @@ from urllib.parse import urlsplit
 CATALOG_VERSION = 1
 DEFAULT_MANIFEST = "ahk-library.toml"
 DEFAULT_MANAGER_HOTKEY = "#!m"
+DEFAULT_REMOTE_TOGGLE_HOTKEY = "#!s"
+DEFAULT_REMOTE_PROCESSES = ["mstsc.exe", "msrdc.exe", "msrdcw.exe", "vmware-view.exe"]
 REPOSITORY_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 HOTKEY = re.compile(r"^[#!+^]*([A-Za-z0-9]|F(?:[1-9]|1[0-9]|2[0-4]))$")
+PROCESS_NAME = re.compile(r"^[A-Za-z0-9._-]+\.exe$", re.IGNORECASE)
 
 
 class ManagerError(RuntimeError):
@@ -61,7 +64,13 @@ def toml_string(value: str) -> str:
 
 def load_catalog(path: Path) -> dict[str, Any]:
     if not path.exists():
-        return {"version": CATALOG_VERSION, "manager_hotkey": DEFAULT_MANAGER_HOTKEY, "repositories": []}
+        return {
+            "version": CATALOG_VERSION,
+            "manager_hotkey": DEFAULT_MANAGER_HOTKEY,
+            "remote_toggle_hotkey": DEFAULT_REMOTE_TOGGLE_HOTKEY,
+            "remote_processes": DEFAULT_REMOTE_PROCESSES.copy(),
+            "repositories": [],
+        }
     with path.open("rb") as stream:
         data = tomllib.load(stream)
     if data.get("version") != CATALOG_VERSION:
@@ -70,11 +79,21 @@ def load_catalog(path: Path) -> dict[str, Any]:
     if not isinstance(repositories, list):
         raise ManagerError("catalog.toml repositories must be an array of tables")
     data.setdefault("manager_hotkey", DEFAULT_MANAGER_HOTKEY)
+    data.setdefault("remote_toggle_hotkey", DEFAULT_REMOTE_TOGGLE_HOTKEY)
+    data.setdefault("remote_processes", DEFAULT_REMOTE_PROCESSES.copy())
     return data
 
 
 def save_catalog(path: Path, catalog: dict[str, Any]) -> None:
-    lines = [f"version = {CATALOG_VERSION}", f"manager_hotkey = {toml_string(str(catalog.get('manager_hotkey', DEFAULT_MANAGER_HOTKEY)))}", ""]
+    remote_processes = catalog.get("remote_processes", DEFAULT_REMOTE_PROCESSES)
+    process_values = ", ".join(toml_string(str(item)) for item in remote_processes)
+    lines = [
+        f"version = {CATALOG_VERSION}",
+        f"manager_hotkey = {toml_string(str(catalog.get('manager_hotkey', DEFAULT_MANAGER_HOTKEY)))}",
+        f"remote_toggle_hotkey = {toml_string(str(catalog.get('remote_toggle_hotkey', DEFAULT_REMOTE_TOGGLE_HOTKEY)))}",
+        f"remote_processes = [{process_values}]",
+        "",
+    ]
     for repo in catalog.get("repositories", []):
         lines.append("[[repositories]]")
         for key in ("id", "url", "ref", "manifest", "update"):
@@ -443,16 +462,78 @@ def validate_manager_hotkey(value: str) -> None:
         raise ManagerError("Manager shortcut must use AutoHotkey notation such as #!m, or be blank to disable it")
 
 
+def normalize_remote_processes(value: str | list[str]) -> list[str]:
+    items = value.split(",") if isinstance(value, str) else value
+    result = []
+    for item in items:
+        process = str(item).strip().lower()
+        if not process:
+            continue
+        if not PROCESS_NAME.fullmatch(process):
+            raise ManagerError(f"Remote client process must be an executable name ending in .exe: {process}")
+        if process not in result:
+            result.append(process)
+    return result
+
+
 def generate_loader(data_dir: Path, catalog: dict[str, Any], validation: bool = False) -> Path:
     generated = data_dir / "generated"
     generated.mkdir(parents=True, exist_ok=True)
     path = generated / ("validate-loader.ahk" if validation else "active-loader.ahk")
     lines = ["#Requires AutoHotkey v2.0", "#SingleInstance Force" if not validation else "#SingleInstance Off"]
     manager_hotkey = str(catalog.get("manager_hotkey", DEFAULT_MANAGER_HOTKEY)).strip()
+    remote_toggle_hotkey = str(catalog.get("remote_toggle_hotkey", DEFAULT_REMOTE_TOGGLE_HOTKEY)).strip()
+    remote_processes = normalize_remote_processes(catalog.get("remote_processes", DEFAULT_REMOTE_PROCESSES))
     validate_manager_hotkey(manager_hotkey)
+    validate_manager_hotkey(remote_toggle_hotkey)
+    manager_script = ahk_single_quoted(str(manager_repo_path() / "manager.ahk"))
+    lines.extend([
+        "global ASM_ManualRemoteMode := false",
+        "global ASM_AutoRemoteMode := false",
+        "global ASM_LastSuspended := false",
+        "#SuspendExempt true",
+    ])
     if manager_hotkey:
-        manager_script = ahk_single_quoted(str(manager_repo_path() / "manager.ahk"))
         lines.append(f"{manager_hotkey}::Run('\"' A_AhkPath '\" \"{manager_script}\"')")
+    if remote_toggle_hotkey:
+        lines.append(f"{remote_toggle_hotkey}::ASM_ToggleRemoteMode()")
+    lines.extend([
+        "#SuspendExempt false",
+        "ASM_ToggleRemoteMode(*) {",
+        "    global ASM_ManualRemoteMode := !ASM_ManualRemoteMode",
+        "    ASM_ApplyRemoteMode(true)",
+        "}",
+        "ASM_CheckRemoteWindow(*) {",
+        "    global ASM_AutoRemoteMode",
+        "    try processName := StrLower(WinGetProcessName(\"A\"))",
+        "    catch",
+        "        processName := \"\"",
+        f"    remoteProcesses := [{', '.join(toml_string(item) for item in remote_processes)}]",
+        "    isRemote := false",
+        "    for remoteProcess in remoteProcesses {",
+        "        if processName = remoteProcess {",
+        "            isRemote := true",
+        "            break",
+        "        }",
+        "    }",
+        "    if isRemote != ASM_AutoRemoteMode {",
+        "        ASM_AutoRemoteMode := isRemote",
+        "        ASM_ApplyRemoteMode(true)",
+        "    }",
+        "}",
+        "ASM_ApplyRemoteMode(showNotice := false) {",
+        "    global ASM_ManualRemoteMode, ASM_AutoRemoteMode, ASM_LastSuspended",
+        "    shouldSuspend := ASM_ManualRemoteMode || ASM_AutoRemoteMode",
+        "    if shouldSuspend = ASM_LastSuspended",
+        "        return",
+        "    ASM_LastSuspended := shouldSuspend",
+        "    Suspend(shouldSuspend)",
+        "    if showNotice",
+        "        TrayTip(shouldSuspend ? \"Managed hotkeys paused\" : \"Managed hotkeys active\", \"AutoHotkey Script Manager\")",
+        "}",
+    ])
+    if remote_processes:
+        lines.append("SetTimer(ASM_CheckRemoteWindow, 250)")
     if validation:
         lines.append("SetTimer(() => ExitApp(), -300)")
     for repo, script, script_path in enabled_scripts(data_dir, catalog):
@@ -569,6 +650,10 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("activate")
     shortcut = subparsers.add_parser("set-manager-hotkey")
     shortcut.add_argument("hotkey")
+    settings = subparsers.add_parser("set-settings")
+    settings.add_argument("--manager-hotkey", required=True)
+    settings.add_argument("--remote-toggle-hotkey", required=True)
+    settings.add_argument("--remote-processes", required=True)
     subparsers.add_parser("self-update-check")
     subparsers.add_parser("self-update")
     return parser
@@ -646,6 +731,16 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
         catalog["manager_hotkey"] = hotkey
         save_catalog(catalog_path, catalog)
         return {"message": "Manager shortcut disabled" if not hotkey else f"Manager shortcut set to {hotkey}"}
+    if args.command == "set-settings":
+        manager_hotkey = args.manager_hotkey.strip()
+        remote_toggle_hotkey = args.remote_toggle_hotkey.strip()
+        validate_manager_hotkey(manager_hotkey)
+        validate_manager_hotkey(remote_toggle_hotkey)
+        catalog["manager_hotkey"] = manager_hotkey
+        catalog["remote_toggle_hotkey"] = remote_toggle_hotkey
+        catalog["remote_processes"] = normalize_remote_processes(args.remote_processes)
+        save_catalog(catalog_path, catalog)
+        return {"message": "Script Manager settings saved"}
     if args.command == "self-update-check":
         return check_manager_update()
     if args.command == "self-update":

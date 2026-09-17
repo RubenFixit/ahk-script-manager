@@ -34,6 +34,8 @@ class CatalogTests(unittest.TestCase):
         catalog = {
             "version": 1,
             "manager_hotkey": "#!m",
+            "remote_toggle_hotkey": "#!s",
+            "remote_processes": ["mstsc.exe", "vmware-view.exe"],
             "repositories": [
                 {
                     "id": "sample",
@@ -121,11 +123,20 @@ class LoaderSettingsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             loader = manager.generate_loader(root, {"version": 1, "repositories": []})
-            self.assertIn("#!m::Run", loader.read_text(encoding="utf-8-sig"))
+            content = loader.read_text(encoding="utf-8-sig")
+            self.assertIn("#!m::Run", content)
+            self.assertIn("#!s::ASM_ToggleRemoteMode", content)
+            self.assertIn('"mstsc.exe"', content)
+            self.assertIn('"vmware-view.exe"', content)
 
     def test_invalid_manager_hotkey_is_rejected(self) -> None:
         with self.assertRaises(manager.ManagerError):
             manager.validate_manager_hotkey("Run('bad')")
+
+    def test_remote_processes_are_normalized_and_validated(self) -> None:
+        self.assertEqual(manager.normalize_remote_processes("MSTSC.EXE, vmware-view.exe, mstsc.exe"), ["mstsc.exe", "vmware-view.exe"])
+        with self.assertRaises(manager.ManagerError):
+            manager.normalize_remote_processes("not a process")
 
 
 if __name__ == "__main__":
