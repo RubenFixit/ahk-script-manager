@@ -34,7 +34,7 @@ ShowManager() {
 
     ManagerGui := Gui("+Resize", "AutoHotkey Module Manager")
     ManagerGui.SetFont("s10", "Segoe UI")
-    ScriptList := ManagerGui.AddListView("xm ym w900 r18", ["Source ID", "Module", "Script ID", "Script", "Type", "Enable", "Status", "Location"])
+    ScriptList := ManagerGui.AddListView("xm ym w900 r18", ["Source ID", "Source", "Script ID", "Script", "Type", "Enable", "Status", "Location"])
     ScriptList.ModifyCol(1, 0)
     ScriptList.ModifyCol(2, 150)
     ScriptList.ModifyCol(3, 0)
