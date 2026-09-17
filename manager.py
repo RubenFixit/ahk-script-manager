@@ -3,7 +3,7 @@
 # dependencies = []
 # ///
 
-"""Backend for the AutoHotkey Module Manager.
+"""Backend for the AutoHotkey Script Manager.
 
 The backend owns repository synchronization, TOML manifests, local state,
 loader generation, and validation. The AutoHotkey front end invokes one command
@@ -104,7 +104,7 @@ def find_repo(catalog: dict[str, Any], repo_id: str) -> dict[str, Any]:
     for repo in catalog.get("repositories", []):
         if repo.get("id") == repo_id:
             return repo
-        raise ManagerError(f"Module source is not in the catalog: {repo_id}")
+        raise ManagerError(f"Script source is not in the catalog: {repo_id}")
 
 
 def validate_repo_id(repo_id: str) -> None:
@@ -161,7 +161,7 @@ def safe_child(root: Path, relative: str, label: str) -> Path:
 def read_manifest(data_dir: Path, repo: dict[str, Any]) -> tuple[dict[str, Any], Path]:
     root = repo_path(data_dir, repo)
     if not root.is_dir():
-        raise ManagerError(f"Module source has not been synchronized: {repo['id']}")
+        raise ManagerError(f"Script source has not been synchronized: {repo['id']}")
     manifest_path = safe_child(root, repo.get("manifest") or DEFAULT_MANIFEST, "Manifest path")
     if not manifest_path.is_file():
         raise ManagerError(f"Manifest not found: {manifest_path}")
@@ -201,10 +201,10 @@ def synchronize(data_dir: Path, catalog: dict[str, Any], state: dict[str, Any], 
     root = repo_path(data_dir, repo)
     if is_local_repo(repo):
         if not root.is_dir():
-            raise ManagerError(f"Local module source does not exist: {root}")
+            raise ManagerError(f"Local script source does not exist: {root}")
         commit = git_commit(root)
         read_manifest(data_dir, repo)
-        return {"message": f"Validated local module source {repo_id}", "commit": commit}
+        return {"message": f"Validated local script source {repo_id}", "commit": commit}
 
     root.parent.mkdir(parents=True, exist_ok=True)
     if not (root / ".git").exists():
@@ -241,13 +241,13 @@ def synchronize(data_dir: Path, catalog: dict[str, Any], state: dict[str, Any], 
         repo_state["previous_commit"] = previous
     repo_state["active_commit"] = target
     save_state(data_dir / "state.json", state)
-    return {"message": f"Synchronized module source {repo_id}", "commit": target, "previous_commit": previous}
+    return {"message": f"Synchronized script source {repo_id}", "commit": target, "previous_commit": previous}
 
 
 def rollback(data_dir: Path, catalog: dict[str, Any], state: dict[str, Any], repo_id: str) -> dict[str, Any]:
     repo = find_repo(catalog, repo_id)
     if is_local_repo(repo):
-        raise ManagerError("Local module sources are not modified by the manager")
+        raise ManagerError("Local script sources are not modified by the manager")
     repo_state = state.get("repositories", {}).get(repo_id, {})
     previous = repo_state.get("previous_commit")
     if not previous:
@@ -522,14 +522,14 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
         rows = source_rows(data_dir, catalog)
         if args.table:
             write_source_table(args.table, rows)
-        return {"message": f"Found {len(rows)} module sources", "rows": rows}
+        return {"message": f"Found {len(rows)} script sources", "rows": rows}
     if args.command in {"add", "add-url"}:
         repo_id = args.repo_id or derive_repo_id(args.url, args.local)
         validate_repo_id(repo_id)
         if any(repo.get("id") == repo_id for repo in catalog.get("repositories", [])):
             raise ManagerError(f"Source ID already exists: {repo_id}")
         if args.local and not Path(args.url).expanduser().is_dir():
-            raise ManagerError(f"Local module source does not exist: {args.url}")
+            raise ManagerError(f"Local script source does not exist: {args.url}")
         catalog.setdefault("repositories", []).append(
             {
                 "id": repo_id,
@@ -543,14 +543,14 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
             }
         )
         save_catalog(catalog_path, catalog)
-        return {"message": f"Added module source {repo_id}", "repo_id": repo_id}
+        return {"message": f"Added script source {repo_id}", "repo_id": repo_id}
     if args.command == "remove":
         before = len(catalog.get("repositories", []))
         catalog["repositories"] = [repo for repo in catalog.get("repositories", []) if repo.get("id") != args.repo_id]
         if len(catalog["repositories"]) == before:
-            raise ManagerError(f"Module source is not in the catalog: {args.repo_id}")
+            raise ManagerError(f"Script source is not in the catalog: {args.repo_id}")
         save_catalog(catalog_path, catalog)
-        return {"message": f"Removed module source {args.repo_id} from the catalog; cached files were retained"}
+        return {"message": f"Removed script source {args.repo_id} from the catalog; cached files were retained"}
     if args.command == "sync":
         return synchronize(data_dir, catalog, state, args.repo_id)
     if args.command == "rollback":

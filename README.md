@@ -1,6 +1,6 @@
-# AutoHotkey Module Manager
+# AutoHotkey Script Manager
 
-AutoHotkey Module Manager is a Windows desktop manager for AutoHotkey v2
+AutoHotkey Script Manager is a Windows desktop manager for AutoHotkey v2
 scripts distributed across Git repositories. One repository may publish many
 independently selectable scripts through an `ahk-library.toml` manifest.
 
@@ -24,10 +24,10 @@ The application uses:
 
 Run `manager.ahk` with AutoHotkey v2. Its machine-local catalog, managed clones,
 generated loader, and rollback state are stored under
-`%LOCALAPPDATA%\AhkModuleManager`.
+`%LOCALAPPDATA%\AhkScriptManager`.
 
 Use **Add source** to register either a Git URL or an existing local clone that
-publishes one or more AutoHotkey modules.
+publishes one or more AutoHotkey scripts.
 Remote repository IDs are derived from their namespace and repository name, so
 `https://github.com/RubenFixit/ahk-script-library.git` becomes
 `rubenfixit-ahk-script-library`. Local repositories use their folder name.
@@ -37,21 +37,21 @@ generated `#Include` loader. Third-party scripts should normally use
 
 ## Using the interface
 
-The main window manages modules discovered from all configured sources:
+The main window manages scripts discovered from all configured sources:
 
 - **Reload** rereads the local catalog and manifests. It does not download or
   start anything.
 - **Manage sources** opens the source-level window described below.
-- **Enable/Disable** changes whether the selected module belongs in the desired
+- **Enable/Disable** changes whether the selected script belongs in the desired
   active configuration. It does not immediately restart running scripts.
-- **Apply changes** validates the enabled include-mode modules, generates their
+- **Apply changes** validates the enabled include-mode scripts, generates their
   combined loader, and starts or restarts that loader. Use this after changing
   which include-mode modules are enabled.
-- **Launch standalone** starts the selected `standalone` module in its own
-  AutoHotkey process. Include-mode modules are applied with **Apply changes**.
-- **Open folder** opens the selected module's source directory.
+- **Launch standalone** starts the selected `standalone` script in its own
+  AutoHotkey process. Include-mode scripts are applied with **Apply changes**.
+- **Open folder** opens the selected script's source directory.
 
-The **Manage Module Sources** window lists each repository once:
+The **Manage Script Sources** window lists each repository once:
 
 - **Add source** registers a Git URL or local folder, derives a stable source
   ID, and performs its initial synchronization.
@@ -62,7 +62,7 @@ The **Manage Module Sources** window lists each repository once:
 - **Remove** removes the source from the catalog but retains downloaded files.
 - **Open folder** opens the selected source directory.
 
-The enable/apply split is intentional: enablement edits the desired module set,
+The enable/apply split is intentional: enablement edits the desired script set,
 while applying performs validation and changes the running include-mode loader.
 
 ## Repository manifest

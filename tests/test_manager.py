@@ -7,7 +7,7 @@ import unittest
 
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "manager.py"
-SPEC = importlib.util.spec_from_file_location("ahk_module_manager", MODULE_PATH)
+SPEC = importlib.util.spec_from_file_location("ahk_script_manager", MODULE_PATH)
 assert SPEC and SPEC.loader
 manager = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(manager)

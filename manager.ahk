@@ -9,11 +9,11 @@ global SourcesList := 0
 global SourcesStatusText := 0
 
 A_TrayMenu.Delete()
-A_TrayMenu.Add("Open Module Manager", (*) => ShowManager())
-A_TrayMenu.Add("Apply Module Changes", (*) => ApplyChanges())
+A_TrayMenu.Add("Open Script Manager", (*) => ShowManager())
+A_TrayMenu.Add("Apply Script Changes", (*) => ApplyChanges())
 A_TrayMenu.Add()
 A_TrayMenu.Add("Exit", (*) => ExitApp())
-A_TrayMenu.Default := "Open Module Manager"
+A_TrayMenu.Default := "Open Script Manager"
 
 InitializeManager()
 ShowManager()
@@ -21,7 +21,7 @@ ShowManager()
 InitializeManager() {
     result := RunBackend("init")
     if !result.ok
-        MsgBox(result.message, "AutoHotkey Module Manager", "Iconx")
+        MsgBox(result.message, "AutoHotkey Script Manager", "Iconx")
 }
 
 ShowManager() {
@@ -32,7 +32,7 @@ ShowManager() {
         return
     }
 
-    ManagerGui := Gui("+Resize", "AutoHotkey Module Manager")
+    ManagerGui := Gui("+Resize", "AutoHotkey Script Manager")
     ManagerGui.SetFont("s10", "Segoe UI")
     ScriptList := ManagerGui.AddListView("xm ym w900 r18", ["Source ID", "Source", "Script ID", "Script", "Type", "Enable", "Status", "Location"])
     ScriptList.ModifyCol(1, 0)
@@ -77,7 +77,7 @@ BackendCommandPrefix(responsePath, tablePath := "") {
 }
 
 RunBackend(arguments, tablePath := "") {
-    responsePath := A_Temp "\ahk-module-manager-response-" A_TickCount ".json"
+    responsePath := A_Temp "\ahk-script-manager-response-" A_TickCount ".json"
     try FileDelete(responsePath)
     command := BackendCommandPrefix(responsePath, tablePath) " " arguments
     try exitCode := RunWait(command, A_ScriptDir, "Hide")
@@ -116,12 +116,12 @@ SetStatus(message, isError := false) {
     if IsObject(StatusText)
         StatusText.Text := message
     if isError
-        MsgBox(message, "AutoHotkey Module Manager", "Iconx")
+        MsgBox(message, "AutoHotkey Script Manager", "Iconx")
 }
 
 ReloadModules() {
     global ScriptList
-    tablePath := A_Temp "\ahk-module-manager-list-" A_TickCount ".tsv"
+    tablePath := A_Temp "\ahk-script-manager-list-" A_TickCount ".tsv"
     try FileDelete(tablePath)
     result := RunBackend("list", tablePath)
     if !result.ok {
@@ -148,7 +148,7 @@ SelectedRow(requireScript := false) {
     global ScriptList
     row := ScriptList.GetNext()
     if !row {
-        MsgBox("Select a module first.", "AutoHotkey Module Manager", "Icon!")
+        MsgBox("Select a script first.", "AutoHotkey Script Manager", "Icon!")
         return 0
     }
     info := {
@@ -159,14 +159,14 @@ SelectedRow(requireScript := false) {
         path: ScriptList.GetText(row, 8)
     }
     if requireScript && info.scriptId = "" {
-        MsgBox("The selected source has no available module entry.", "AutoHotkey Module Manager", "Icon!")
+        MsgBox("The selected source has no available script entry.", "AutoHotkey Script Manager", "Icon!")
         return 0
     }
     return info
 }
 
 AddSource() {
-    urlResult := InputBox("Git URL or local folder containing the module collection:", "Add source", "w600")
+    urlResult := InputBox("Git URL or local folder containing the script collection:", "Add source", "w600")
     if urlResult.Result != "OK"
         return
     refResult := InputBox("Branch, tag, or commit. Leave blank to use the remote default:", "Add source")
@@ -177,8 +177,8 @@ AddSource() {
         return
 
     isLocal := DirExist(urlResult.Value)
-    prompt := "Trust this module source for include mode?`n`nOnly choose Yes for code you trust; included scripts share one AutoHotkey process."
-    trusted := MsgBox(prompt, "Module source trust", "YesNo Icon?") = "Yes"
+    prompt := "Trust this script source for include mode?`n`nOnly choose Yes for code you trust; included scripts share one AutoHotkey process."
+    trusted := MsgBox(prompt, "Script source trust", "YesNo Icon?") = "Yes"
     arguments := "add-url " QuoteArg(urlResult.Value)
     if refResult.Value != ""
         arguments .= " --ref " QuoteArg(refResult.Value)
@@ -205,7 +205,7 @@ ShowSources() {
         return
     }
 
-    SourcesGui := Gui("+Resize", "Manage Module Sources")
+    SourcesGui := Gui("+Resize", "Manage Script Sources")
     SourcesGui.SetFont("s10", "Segoe UI")
     SourcesList := SourcesGui.AddListView("xm ym w900 r14", ["Source ID", "Source", "Status", "Ref", "Revision", "Location", "URL", "Trusted"])
     SourcesList.ModifyCol(1, 0)
@@ -245,14 +245,14 @@ SetSourcesStatus(message, isError := false) {
     if IsObject(SourcesStatusText)
         SourcesStatusText.Text := message
     if isError
-        MsgBox(message, "Manage Module Sources", "Iconx")
+        MsgBox(message, "Manage Script Sources", "Iconx")
 }
 
 ReloadSources() {
     global SourcesList
     if !IsObject(SourcesList)
         return
-    tablePath := A_Temp "\ahk-module-manager-sources-" A_TickCount ".tsv"
+    tablePath := A_Temp "\ahk-script-manager-sources-" A_TickCount ".tsv"
     try FileDelete(tablePath)
     result := RunBackend("sources", tablePath)
     if !result.ok {
@@ -279,7 +279,7 @@ SelectedSource() {
     global SourcesList
     row := SourcesList.GetNext()
     if !row {
-        MsgBox("Select a module source first.", "Manage Module Sources", "Icon!")
+        MsgBox("Select a script source first.", "Manage Script Sources", "Icon!")
         return 0
     }
     return {
@@ -292,7 +292,7 @@ SyncSelectedSource() {
     source := SelectedSource()
     if !IsObject(source)
         return
-    if MsgBox("Synchronize " source.sourceId " now? A managed clone will move to its configured revision after validation.", "Sync module source", "YesNo Icon?") != "Yes"
+    if MsgBox("Synchronize " source.sourceId " now? A managed clone will move to its configured revision after validation.", "Sync script source", "YesNo Icon?") != "Yes"
         return
     result := RunBackend("sync " QuoteArg(source.sourceId))
     SetSourcesStatus(result.message, !result.ok)
@@ -304,7 +304,7 @@ RollbackSelectedSource() {
     source := SelectedSource()
     if !IsObject(source)
         return
-    if MsgBox("Roll " source.sourceId " back to its previously active managed revision?", "Roll back module source", "YesNo Icon?") != "Yes"
+    if MsgBox("Roll " source.sourceId " back to its previously active managed revision?", "Roll back script source", "YesNo Icon?") != "Yes"
         return
     result := RunBackend("rollback " QuoteArg(source.sourceId))
     SetSourcesStatus(result.message, !result.ok)
@@ -317,7 +317,7 @@ RemoveSelectedSource() {
     if !IsObject(source)
         return
     prompt := "Remove " source.sourceId " from the catalog?`n`nDownloaded files are retained so this can be reversed."
-    if MsgBox(prompt, "Remove module source", "YesNo Icon?") != "Yes"
+    if MsgBox(prompt, "Remove script source", "YesNo Icon?") != "Yes"
         return
     result := RunBackend("remove " QuoteArg(source.sourceId))
     SetSourcesStatus(result.message, !result.ok)
@@ -332,7 +332,7 @@ OpenSelectedSourceFolder() {
     if DirExist(source.path)
         Run('explorer.exe "' source.path '"')
     else
-        MsgBox("The module source directory does not exist yet.", "Manage Module Sources", "Icon!")
+        MsgBox("The script source directory does not exist yet.", "Manage Script Sources", "Icon!")
 }
 
 ToggleSelected() {
@@ -365,13 +365,15 @@ OpenSelectedFolder() {
     if DirExist(info.path)
         Run('explorer.exe "' info.path '"')
     else
-        MsgBox("Repository directory does not exist yet.", "AutoHotkey Module Manager", "Icon!")
+        MsgBox("Source directory does not exist yet.", "AutoHotkey Script Manager", "Icon!")
 }
 
 ManagerDataDir() {
     localAppData := EnvGet("LOCALAPPDATA")
-    currentDir := localAppData "\AhkModuleManager"
-    legacyDir := localAppData "\AhkRepoManager"
+    currentDir := localAppData "\AhkScriptManager"
+    previousManagerDir := localAppData "\AhkModuleManager"
+    repoManagerDir := localAppData "\AhkRepoManager"
+    legacyDir := DirExist(previousManagerDir) ? previousManagerDir : repoManagerDir
     if !DirExist(currentDir) && DirExist(legacyDir) {
         ; Copy instead of moving because an active generated loader may still
         ; have files open in the legacy directory during an upgrade.
