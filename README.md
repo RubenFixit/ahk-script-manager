@@ -133,6 +133,14 @@ repository. `standalone` scripts run in their own AutoHotkey process.
 The manager cannot determine whether arbitrary automation code is benevolent.
 Review third-party changes before enabling or launching them.
 
+## Troubleshooting
+
+If a managed hotkey still fires during Remote Mode, make sure the same script is
+not also included by another running AutoHotkey master. Suspension is local to
+the generated loader process and cannot disable duplicate hotkeys owned by a
+different AutoHotkey process. Managed public scripts should be included only by
+the generated loader; keep separate masters for personal-only shortcuts.
+
 ## License
 
 MIT
