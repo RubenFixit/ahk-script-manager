@@ -29,6 +29,7 @@ CATALOG_VERSION = 1
 DEFAULT_MANIFEST = "ahk-library.toml"
 DEFAULT_MANAGER_HOTKEY = "#!m"
 DEFAULT_REMOTE_TOGGLE_HOTKEY = "#!s"
+DEFAULT_REMOTE_AUTO_ENABLED = True
 LEGACY_REMOTE_PROCESSES = ["mstsc.exe", "msrdc.exe", "msrdcw.exe", "vmware-view.exe"]
 DEFAULT_REMOTE_PROCESSES = ["mstsc.exe", "msrdc.exe", "msrdcw.exe", "horizon-client.exe", "vmware-view.exe"]
 REPOSITORY_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
@@ -69,6 +70,7 @@ def load_catalog(path: Path) -> dict[str, Any]:
             "version": CATALOG_VERSION,
             "manager_hotkey": DEFAULT_MANAGER_HOTKEY,
             "remote_toggle_hotkey": DEFAULT_REMOTE_TOGGLE_HOTKEY,
+            "remote_auto_enabled": DEFAULT_REMOTE_AUTO_ENABLED,
             "remote_processes": DEFAULT_REMOTE_PROCESSES.copy(),
             "repositories": [],
         }
@@ -81,6 +83,7 @@ def load_catalog(path: Path) -> dict[str, Any]:
         raise ManagerError("catalog.toml repositories must be an array of tables")
     data.setdefault("manager_hotkey", DEFAULT_MANAGER_HOTKEY)
     data.setdefault("remote_toggle_hotkey", DEFAULT_REMOTE_TOGGLE_HOTKEY)
+    data.setdefault("remote_auto_enabled", DEFAULT_REMOTE_AUTO_ENABLED)
     data.setdefault("remote_processes", DEFAULT_REMOTE_PROCESSES.copy())
     if data["remote_processes"] == LEGACY_REMOTE_PROCESSES:
         data["remote_processes"] = DEFAULT_REMOTE_PROCESSES.copy()
@@ -94,6 +97,7 @@ def save_catalog(path: Path, catalog: dict[str, Any]) -> None:
         f"version = {CATALOG_VERSION}",
         f"manager_hotkey = {toml_string(str(catalog.get('manager_hotkey', DEFAULT_MANAGER_HOTKEY)))}",
         f"remote_toggle_hotkey = {toml_string(str(catalog.get('remote_toggle_hotkey', DEFAULT_REMOTE_TOGGLE_HOTKEY)))}",
+        f"remote_auto_enabled = {'true' if catalog.get('remote_auto_enabled', DEFAULT_REMOTE_AUTO_ENABLED) else 'false'}",
         f"remote_processes = [{process_values}]",
         "",
     ]
@@ -486,6 +490,7 @@ def generate_loader(data_dir: Path, catalog: dict[str, Any], validation: bool = 
     lines = ["#Requires AutoHotkey v2.0", "#SingleInstance Force" if not validation else "#SingleInstance Off"]
     manager_hotkey = str(catalog.get("manager_hotkey", DEFAULT_MANAGER_HOTKEY)).strip()
     remote_toggle_hotkey = str(catalog.get("remote_toggle_hotkey", DEFAULT_REMOTE_TOGGLE_HOTKEY)).strip()
+    remote_auto_enabled = bool(catalog.get("remote_auto_enabled", DEFAULT_REMOTE_AUTO_ENABLED))
     remote_processes = normalize_remote_processes(catalog.get("remote_processes", DEFAULT_REMOTE_PROCESSES))
     validate_manager_hotkey(manager_hotkey)
     validate_manager_hotkey(remote_toggle_hotkey)
@@ -533,7 +538,7 @@ def generate_loader(data_dir: Path, catalog: dict[str, Any], validation: bool = 
         "    }",
         "}",
     ])
-    if remote_processes:
+    if remote_auto_enabled and remote_processes:
         lines.append("SetTimer(ASM_CheckRemoteWindow, 250)")
     if validation:
         lines.append("SetTimer(() => ExitApp(), -300)")
@@ -654,6 +659,7 @@ def build_parser() -> argparse.ArgumentParser:
     settings = subparsers.add_parser("set-settings")
     settings.add_argument("--manager-hotkey", required=True)
     settings.add_argument("--remote-toggle-hotkey", required=True)
+    settings.add_argument("--remote-auto-enabled", required=True, choices=("true", "false"))
     settings.add_argument("--remote-processes", required=True)
     subparsers.add_parser("self-update-check")
     subparsers.add_parser("self-update")
@@ -738,6 +744,7 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
         validate_manager_hotkey(remote_toggle_hotkey)
         catalog["manager_hotkey"] = manager_hotkey
         catalog["remote_toggle_hotkey"] = remote_toggle_hotkey
+        catalog["remote_auto_enabled"] = args.remote_auto_enabled == "true"
         catalog["remote_processes"] = normalize_remote_processes(args.remote_processes)
         save_catalog(catalog_path, catalog)
         return {"message": "Script Manager settings saved"}

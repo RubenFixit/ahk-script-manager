@@ -59,8 +59,10 @@ The main window manages scripts discovered from all configured sources:
 - **Launch standalone** starts the selected `standalone` script in its own
   AutoHotkey process. Include-mode scripts are applied with **Apply changes**.
 - **Open folder** opens the selected script's source directory.
-- **Settings** changes the manager shortcut, manual Remote Mode shortcut, and
-  the remote-client process list. The manager shortcut defaults to
+- **Settings** opens a conventional settings window for the manager shortcut,
+  manual Remote Mode shortcut, automatic Remote Mode, and its remote-client
+  process list. Shortcut fields are optional, and automatic detection can be
+  disabled without deleting its process list. The manager shortcut defaults to
   **Windows+Alt+M** (`#!m`), and manual Remote Mode defaults to
   **Windows+Alt+S** (`#!s`). Leave either shortcut blank to disable it.
 

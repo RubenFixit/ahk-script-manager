@@ -7,6 +7,11 @@ global StatusText := 0
 global SourcesGui := 0
 global SourcesList := 0
 global SourcesStatusText := 0
+global SettingsGui := 0
+global ManagerHotkeyEdit := 0
+global RemoteToggleEdit := 0
+global RemoteAutoCheckbox := 0
+global RemoteProcessesEdit := 0
 
 A_TrayMenu.Delete()
 A_TrayMenu.Add("Open Script Manager", (*) => ShowManager())
@@ -372,26 +377,56 @@ ApplyChanges() {
 }
 
 ShowSettings() {
-    managerPrompt := "Manager shortcut in AutoHotkey notation:`n`n#!m means Windows+Alt+M.`nLeave blank to disable the shortcut."
-    managerResult := InputBox(managerPrompt, "Script Manager settings", "w460", CurrentCatalogSetting("manager_hotkey", "#!m"))
-    if managerResult.Result != "OK"
-        return
-    togglePrompt := "Manual Remote Mode shortcut:`n`n#!s means Windows+Alt+S.`nLeave blank to disable the manual toggle."
-    toggleResult := InputBox(togglePrompt, "Script Manager settings", "w460", CurrentCatalogSetting("remote_toggle_hotkey", "#!s"))
-    if toggleResult.Result != "OK"
-        return
-    processPrompt := "Remote client process names, separated by commas:`n`nManaged hotkeys pause automatically while one is the active window.`nLeave blank to disable automatic Remote Mode."
-    processResult := InputBox(processPrompt, "Script Manager settings", "w600", CurrentRemoteProcesses())
-    if processResult.Result != "OK"
-        return
-    arguments := "set-settings --manager-hotkey " QuoteArg(managerResult.Value)
-    arguments .= " --remote-toggle-hotkey " QuoteArg(toggleResult.Value)
-    arguments .= " --remote-processes " QuoteArg(processResult.Value)
+    global SettingsGui, ManagerHotkeyEdit, RemoteToggleEdit, RemoteAutoCheckbox, RemoteProcessesEdit
+    if !IsObject(SettingsGui) {
+        SettingsGui := Gui("", "AutoHotkey Script Manager Settings")
+        SettingsGui.SetFont("s10", "Segoe UI")
+
+        SettingsGui.AddText("xm ym", "Open Script Manager shortcut")
+        ManagerHotkeyEdit := SettingsGui.AddEdit("xm y+4 w460")
+        SettingsGui.AddText("xm y+3 c666666", "AutoHotkey notation; #!m is Windows+Alt+M. Leave blank to disable.")
+
+        SettingsGui.AddText("xm y+18", "Manual Remote Mode shortcut")
+        RemoteToggleEdit := SettingsGui.AddEdit("xm y+4 w460")
+        SettingsGui.AddText("xm y+3 c666666", "AutoHotkey notation; #!s is Windows+Alt+S. Leave blank to disable.")
+
+        RemoteAutoCheckbox := SettingsGui.AddCheckbox("xm y+18", "Automatically pause managed hotkeys in remote clients")
+        RemoteAutoCheckbox.OnEvent("Click", (*) => UpdateRemoteSettingsState())
+        SettingsGui.AddText("xm y+10", "Remote client process names")
+        RemoteProcessesEdit := SettingsGui.AddEdit("xm y+4 w460 r6")
+        SettingsGui.AddText("xm y+3 c666666", "Enter one executable name per line, such as mstsc.exe or horizon-client.exe.")
+
+        SettingsGui.AddButton("xm y+18 w90 Default", "&Save").OnEvent("Click", (*) => SaveSettings())
+        SettingsGui.AddButton("x+8 w90", "Cancel").OnEvent("Click", (*) => SettingsGui.Hide())
+        SettingsGui.OnEvent("Close", (*) => SettingsGui.Hide())
+    }
+    ManagerHotkeyEdit.Value := CurrentCatalogSetting("manager_hotkey", "#!m")
+    RemoteToggleEdit.Value := CurrentCatalogSetting("remote_toggle_hotkey", "#!s")
+    processes := CurrentRemoteProcesses()
+    RemoteAutoCheckbox.Value := CurrentCatalogBoolean("remote_auto_enabled", true)
+    RemoteProcessesEdit.Value := StrReplace(processes, ", ", "`r`n")
+    UpdateRemoteSettingsState()
+    SettingsGui.Show("AutoSize")
+}
+
+UpdateRemoteSettingsState() {
+    global RemoteAutoCheckbox, RemoteProcessesEdit
+    RemoteProcessesEdit.Enabled := !!RemoteAutoCheckbox.Value
+}
+
+SaveSettings() {
+    global SettingsGui, ManagerHotkeyEdit, RemoteToggleEdit, RemoteAutoCheckbox, RemoteProcessesEdit
+    processes := StrReplace(StrReplace(RemoteProcessesEdit.Value, "`r", ""), "`n", ",")
+    arguments := "set-settings --manager-hotkey " QuoteArg(ManagerHotkeyEdit.Value)
+    arguments .= " --remote-toggle-hotkey " QuoteArg(RemoteToggleEdit.Value)
+    arguments .= " --remote-auto-enabled " (RemoteAutoCheckbox.Value ? "true" : "false")
+    arguments .= " --remote-processes " QuoteArg(processes)
     saveResult := RunBackend(arguments)
     if !saveResult.ok {
         SetStatus(saveResult.message, true)
         return
     }
+    SettingsGui.Hide()
     SetStatus(saveResult.message)
     ApplyChanges()
 }
@@ -400,6 +435,13 @@ CurrentCatalogSetting(name, defaultValue) {
     catalogPath := ManagerDataDir() "\catalog.toml"
     if FileExist(catalogPath) && RegExMatch(FileRead(catalogPath, "UTF-8"), 'm)^' name '\s*=\s*"([#!+^A-Za-z0-9]*)"', &match)
         return match[1]
+    return defaultValue
+}
+
+CurrentCatalogBoolean(name, defaultValue) {
+    catalogPath := ManagerDataDir() "\catalog.toml"
+    if FileExist(catalogPath) && RegExMatch(FileRead(catalogPath, "UTF-8"), 'im)^' name '\s*=\s*(true|false)', &match)
+        return StrLower(match[1]) = "true"
     return defaultValue
 }
 

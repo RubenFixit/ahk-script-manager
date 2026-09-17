@@ -35,6 +35,7 @@ class CatalogTests(unittest.TestCase):
             "version": 1,
             "manager_hotkey": "#!m",
             "remote_toggle_hotkey": "#!s",
+            "remote_auto_enabled": True,
             "remote_processes": ["mstsc.exe", "vmware-view.exe"],
             "repositories": [
                 {
@@ -150,6 +151,19 @@ class LoaderSettingsTests(unittest.TestCase):
         self.assertEqual(manager.normalize_remote_processes("MSTSC.EXE, vmware-view.exe, mstsc.exe"), ["mstsc.exe", "vmware-view.exe"])
         with self.assertRaises(manager.ManagerError):
             manager.normalize_remote_processes("not a process")
+
+    def test_disabling_auto_remote_mode_preserves_processes_without_timer(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            catalog = {
+                "version": 1,
+                "remote_auto_enabled": False,
+                "remote_processes": ["mstsc.exe", "horizon-client.exe"],
+                "repositories": [],
+            }
+            loader = manager.generate_loader(Path(directory), catalog)
+            content = loader.read_text(encoding="utf-8-sig")
+            self.assertIn('"horizon-client.exe"', content)
+            self.assertNotIn("SetTimer(ASM_CheckRemoteWindow", content)
 
 
 if __name__ == "__main__":
