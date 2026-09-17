@@ -1,0 +1,11 @@
+version = 1
+
+[[repositories]]
+id = "ahk-script-library"
+url = "C:\\Projects\\ahk-script-library"
+ref = ""
+manifest = "ahk-library.toml"
+update = "prompt"
+local = true
+trusted = true
+enabled = ["clipboard-qr"]
