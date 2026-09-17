@@ -384,11 +384,9 @@ ShowSettings() {
 
         SettingsGui.AddText("xm ym", "Open Script Manager shortcut")
         ManagerHotkeyEdit := SettingsGui.AddEdit("xm y+4 w460")
-        SettingsGui.AddText("xm y+3 c666666", "AutoHotkey notation; #!m is Windows+Alt+M. Leave blank to disable.")
 
         SettingsGui.AddText("xm y+18", "Manual Remote Mode shortcut")
         RemoteToggleEdit := SettingsGui.AddEdit("xm y+4 w460")
-        SettingsGui.AddText("xm y+3 c666666", "AutoHotkey notation; #!s is Windows+Alt+S. Leave blank to disable.")
 
         RemoteAutoCheckbox := SettingsGui.AddCheckbox("xm y+18", "Automatically pause managed hotkeys in remote clients")
         RemoteAutoCheckbox.OnEvent("Click", (*) => UpdateRemoteSettingsState())
