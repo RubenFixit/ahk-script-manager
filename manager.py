@@ -29,7 +29,8 @@ CATALOG_VERSION = 1
 DEFAULT_MANIFEST = "ahk-library.toml"
 DEFAULT_MANAGER_HOTKEY = "#!m"
 DEFAULT_REMOTE_TOGGLE_HOTKEY = "#!s"
-DEFAULT_REMOTE_PROCESSES = ["mstsc.exe", "msrdc.exe", "msrdcw.exe", "vmware-view.exe"]
+LEGACY_REMOTE_PROCESSES = ["mstsc.exe", "msrdc.exe", "msrdcw.exe", "vmware-view.exe"]
+DEFAULT_REMOTE_PROCESSES = ["mstsc.exe", "msrdc.exe", "msrdcw.exe", "horizon-client.exe", "vmware-view.exe"]
 REPOSITORY_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 HOTKEY = re.compile(r"^[#!+^]*([A-Za-z0-9]|F(?:[1-9]|1[0-9]|2[0-4]))$")
 PROCESS_NAME = re.compile(r"^[A-Za-z0-9._-]+\.exe$", re.IGNORECASE)
@@ -81,6 +82,8 @@ def load_catalog(path: Path) -> dict[str, Any]:
     data.setdefault("manager_hotkey", DEFAULT_MANAGER_HOTKEY)
     data.setdefault("remote_toggle_hotkey", DEFAULT_REMOTE_TOGGLE_HOTKEY)
     data.setdefault("remote_processes", DEFAULT_REMOTE_PROCESSES.copy())
+    if data["remote_processes"] == LEGACY_REMOTE_PROCESSES:
+        data["remote_processes"] = DEFAULT_REMOTE_PROCESSES.copy()
     return data
 
 
@@ -669,8 +672,7 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
     state = load_state(data_dir / "state.json")
 
     if args.command == "init":
-        if not catalog_path.exists():
-            save_catalog(catalog_path, catalog)
+        save_catalog(catalog_path, catalog)
         return {"message": f"Manager data initialized at {data_dir}"}
     if args.command == "list":
         rows = catalog_rows(data_dir, catalog)

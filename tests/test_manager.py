@@ -54,6 +54,15 @@ class CatalogTests(unittest.TestCase):
             manager.save_catalog(path, catalog)
             self.assertEqual(manager.load_catalog(path), catalog)
 
+    def test_legacy_remote_defaults_gain_current_horizon_process(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "catalog.toml"
+            path.write_text(
+                'version = 1\nremote_processes = ["mstsc.exe", "msrdc.exe", "msrdcw.exe", "vmware-view.exe"]\n',
+                encoding="utf-8",
+            )
+            self.assertIn("horizon-client.exe", manager.load_catalog(path)["remote_processes"])
+
     def test_safe_child_rejects_escape(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             with self.assertRaises(manager.ManagerError):
@@ -128,6 +137,7 @@ class LoaderSettingsTests(unittest.TestCase):
             self.assertIn("#!s::ASM_ToggleRemoteMode", content)
             self.assertIn('"mstsc.exe"', content)
             self.assertIn('"vmware-view.exe"', content)
+            self.assertIn('"horizon-client.exe"', content)
             self.assertIn("Remote client detected", content)
             self.assertIn("Manual Remote Mode changed", content)
 

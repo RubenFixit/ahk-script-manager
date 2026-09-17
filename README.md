@@ -85,7 +85,7 @@ The loader automatically pauses managed hotkeys while a configured remote
 client owns the active window, allowing those keystrokes to reach the remote
 computer. The defaults cover classic Remote Desktop (`mstsc.exe`), Microsoft's
 newer Remote Desktop clients (`msrdc.exe` and `msrdcw.exe`), and Omnissa/VMware
-Horizon Client (`vmware-view.exe`). Focus another application to restore local
+Horizon Client (`horizon-client.exe`, plus the legacy `vmware-view.exe`). Focus another application to restore local
 hotkeys. Windows+Alt+S also toggles Remote Mode manually and remains available
 while managed hotkeys are paused. Both the process list and toggle are editable
 in **Settings**. A notification appears whenever automatic detection or the

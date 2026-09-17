@@ -406,9 +406,9 @@ CurrentCatalogSetting(name, defaultValue) {
 CurrentRemoteProcesses() {
     catalogPath := ManagerDataDir() "\catalog.toml"
     if !FileExist(catalogPath)
-        return "mstsc.exe, msrdc.exe, msrdcw.exe, vmware-view.exe"
+        return "mstsc.exe, msrdc.exe, msrdcw.exe, horizon-client.exe, vmware-view.exe"
     if !RegExMatch(FileRead(catalogPath, "UTF-8"), 'm)^remote_processes\s*=\s*\[(.*)\]', &arrayMatch)
-        return "mstsc.exe, msrdc.exe, msrdcw.exe, vmware-view.exe"
+        return "mstsc.exe, msrdc.exe, msrdcw.exe, horizon-client.exe, vmware-view.exe"
     values := ""
     position := 1
     while position := RegExMatch(arrayMatch[1], '"([^"]+)"', &item, position) {
