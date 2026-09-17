@@ -34,10 +34,10 @@ ShowManager() {
 
     ManagerGui := Gui("+Resize", "AutoHotkey Module Manager")
     ManagerGui.SetFont("s10", "Segoe UI")
-    ScriptList := ManagerGui.AddListView("xm ym w900 r18", ["Source ID", "Script ID", "Module", "Script", "Type", "Enable", "Status", "Location"])
+    ScriptList := ManagerGui.AddListView("xm ym w900 r18", ["Source ID", "Module", "Script ID", "Script", "Type", "Enable", "Status", "Location"])
     ScriptList.ModifyCol(1, 0)
-    ScriptList.ModifyCol(2, 0)
-    ScriptList.ModifyCol(3, 150)
+    ScriptList.ModifyCol(2, 150)
+    ScriptList.ModifyCol(3, 0)
     ScriptList.ModifyCol(4, 210)
     ScriptList.ModifyCol(5, 85)
     ScriptList.ModifyCol(6, 75)
@@ -154,7 +154,7 @@ SelectedRow(requireScript := false) {
     info := {
         row: row,
         repoId: ScriptList.GetText(row, 1),
-        scriptId: ScriptList.GetText(row, 2),
+        scriptId: ScriptList.GetText(row, 3),
         enabled: ScriptList.GetText(row, 6),
         path: ScriptList.GetText(row, 8)
     }
