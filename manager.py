@@ -27,7 +27,9 @@ from urllib.parse import urlsplit
 
 CATALOG_VERSION = 1
 DEFAULT_MANIFEST = "ahk-library.toml"
+DEFAULT_MANAGER_HOTKEY = "#!m"
 REPOSITORY_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+HOTKEY = re.compile(r"^[#!+^]*([A-Za-z0-9]|F(?:[1-9]|1[0-9]|2[0-4]))$")
 
 
 class ManagerError(RuntimeError):
@@ -59,7 +61,7 @@ def toml_string(value: str) -> str:
 
 def load_catalog(path: Path) -> dict[str, Any]:
     if not path.exists():
-        return {"version": CATALOG_VERSION, "repositories": []}
+        return {"version": CATALOG_VERSION, "manager_hotkey": DEFAULT_MANAGER_HOTKEY, "repositories": []}
     with path.open("rb") as stream:
         data = tomllib.load(stream)
     if data.get("version") != CATALOG_VERSION:
@@ -67,11 +69,12 @@ def load_catalog(path: Path) -> dict[str, Any]:
     repositories = data.get("repositories", [])
     if not isinstance(repositories, list):
         raise ManagerError("catalog.toml repositories must be an array of tables")
+    data.setdefault("manager_hotkey", DEFAULT_MANAGER_HOTKEY)
     return data
 
 
 def save_catalog(path: Path, catalog: dict[str, Any]) -> None:
-    lines = [f"version = {CATALOG_VERSION}", ""]
+    lines = [f"version = {CATALOG_VERSION}", f"manager_hotkey = {toml_string(str(catalog.get('manager_hotkey', DEFAULT_MANAGER_HOTKEY)))}", ""]
     for repo in catalog.get("repositories", []):
         lines.append("[[repositories]]")
         for key in ("id", "url", "ref", "manifest", "update"):
@@ -431,11 +434,25 @@ def ahk_path(path: Path) -> str:
     return str(path).replace("`", "``")
 
 
+def ahk_single_quoted(value: str) -> str:
+    return value.replace("`", "``").replace("'", "`'")
+
+
+def validate_manager_hotkey(value: str) -> None:
+    if value and not HOTKEY.fullmatch(value):
+        raise ManagerError("Manager shortcut must use AutoHotkey notation such as #!m, or be blank to disable it")
+
+
 def generate_loader(data_dir: Path, catalog: dict[str, Any], validation: bool = False) -> Path:
     generated = data_dir / "generated"
     generated.mkdir(parents=True, exist_ok=True)
     path = generated / ("validate-loader.ahk" if validation else "active-loader.ahk")
     lines = ["#Requires AutoHotkey v2.0", "#SingleInstance Force" if not validation else "#SingleInstance Off"]
+    manager_hotkey = str(catalog.get("manager_hotkey", DEFAULT_MANAGER_HOTKEY)).strip()
+    validate_manager_hotkey(manager_hotkey)
+    if manager_hotkey:
+        manager_script = ahk_single_quoted(str(manager_repo_path() / "manager.ahk"))
+        lines.append(f"{manager_hotkey}::Run('\"' A_AhkPath '\" \"{manager_script}\"')")
     if validation:
         lines.append("SetTimer(() => ExitApp(), -300)")
     for repo, script, script_path in enabled_scripts(data_dir, catalog):
@@ -550,6 +567,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     subparsers.add_parser("validate")
     subparsers.add_parser("activate")
+    shortcut = subparsers.add_parser("set-manager-hotkey")
+    shortcut.add_argument("hotkey")
     subparsers.add_parser("self-update-check")
     subparsers.add_parser("self-update")
     return parser
@@ -621,6 +640,12 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
         return {"message": "Enabled include-mode scripts passed AutoHotkey validation"}
     if args.command == "activate":
         return activate(data_dir, catalog, args.autohotkey)
+    if args.command == "set-manager-hotkey":
+        hotkey = args.hotkey.strip()
+        validate_manager_hotkey(hotkey)
+        catalog["manager_hotkey"] = hotkey
+        save_catalog(catalog_path, catalog)
+        return {"message": "Manager shortcut disabled" if not hotkey else f"Manager shortcut set to {hotkey}"}
     if args.command == "self-update-check":
         return check_manager_update()
     if args.command == "self-update":

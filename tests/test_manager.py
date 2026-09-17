@@ -33,6 +33,7 @@ class CatalogTests(unittest.TestCase):
     def test_catalog_round_trip(self) -> None:
         catalog = {
             "version": 1,
+            "manager_hotkey": "#!m",
             "repositories": [
                 {
                     "id": "sample",
@@ -113,6 +114,18 @@ class SelfUpdateTests(unittest.TestCase):
             with patch.object(manager, "manager_repo_path", return_value=root), patch.object(manager, "run", return_value=" M manager.py"):
                 with self.assertRaisesRegex(manager.ManagerError, "local changes"):
                     manager.update_manager()
+
+
+class LoaderSettingsTests(unittest.TestCase):
+    def test_default_manager_hotkey_is_written_to_loader(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            loader = manager.generate_loader(root, {"version": 1, "repositories": []})
+            self.assertIn("#!m::Run", loader.read_text(encoding="utf-8-sig"))
+
+    def test_invalid_manager_hotkey_is_rejected(self) -> None:
+        with self.assertRaises(manager.ManagerError):
+            manager.validate_manager_hotkey("Run('bad')")
 
 
 if __name__ == "__main__":

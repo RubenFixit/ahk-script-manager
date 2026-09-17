@@ -59,6 +59,8 @@ The main window manages scripts discovered from all configured sources:
 - **Launch standalone** starts the selected `standalone` script in its own
   AutoHotkey process. Include-mode scripts are applied with **Apply changes**.
 - **Open folder** opens the selected script's source directory.
+- **Settings** changes the manager shortcut. The default is **Windows+Alt+M**
+  (`#!m` in AutoHotkey notation); leave it blank to disable the shortcut.
 
 The **Manage Script Sources** window lists each repository once:
 
@@ -73,6 +75,9 @@ The **Manage Script Sources** window lists each repository once:
 
 The enable/apply split is intentional: enablement edits the desired script set,
 while applying performs validation and changes the running include-mode loader.
+The generated active loader owns the manager shortcut, so it remains available
+when the manager window is hidden. Saving the shortcut setting applies and
+restarts the loader immediately.
 
 ## Repository manifest
 

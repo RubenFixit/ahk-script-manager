@@ -52,6 +52,7 @@ ShowManager() {
     ManagerGui.AddButton("x+8 w110", "&Apply changes").OnEvent("Click", (*) => ApplyChanges())
     ManagerGui.AddButton("x+8 w130", "Launch &standalone").OnEvent("Click", (*) => LaunchSelected())
     ManagerGui.AddButton("x+8 w95", "Open &folder").OnEvent("Click", (*) => OpenSelectedFolder())
+    ManagerGui.AddButton("x+8 w80", "Se&ttings").OnEvent("Click", (*) => ShowSettings())
     StatusText := ManagerGui.AddText("xm w900", "Ready")
 
     ManagerGui.OnEvent("Close", (*) => ManagerGui.Hide())
@@ -368,6 +369,27 @@ ToggleSelected() {
 ApplyChanges() {
     result := RunBackend("activate")
     SetStatus(result.message, !result.ok)
+}
+
+ShowSettings() {
+    prompt := "Manager shortcut in AutoHotkey notation:`n`n#!m means Windows+Alt+M.`nLeave blank to disable the shortcut."
+    result := InputBox(prompt, "Script Manager settings", "w460", CurrentManagerHotkey())
+    if result.Result != "OK"
+        return
+    saveResult := RunBackend("set-manager-hotkey " QuoteArg(result.Value))
+    if !saveResult.ok {
+        SetStatus(saveResult.message, true)
+        return
+    }
+    SetStatus(saveResult.message)
+    ApplyChanges()
+}
+
+CurrentManagerHotkey() {
+    catalogPath := ManagerDataDir() "\catalog.toml"
+    if FileExist(catalogPath) && RegExMatch(FileRead(catalogPath, "UTF-8"), 'm)^manager_hotkey\s*=\s*"([#!+^A-Za-z0-9]*)"', &match)
+        return match[1]
+    return "#!m"
 }
 
 LaunchSelected() {
