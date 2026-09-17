@@ -13,6 +13,10 @@ The application uses:
   GitLab, and self-hosted servers.
 - `uv` to run the Python backend with the declared Python version.
 
+The front end passes its own AutoHotkey v2 executable path to the backend, so
+validation and activation work with system-wide, per-user, Scoop, and other
+nonstandard AutoHotkey installations.
+
 ## Requirements
 
 - Windows

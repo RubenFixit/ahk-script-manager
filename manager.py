@@ -357,10 +357,21 @@ def set_enabled(catalog: dict[str, Any], repo_id: str, script_id: str, enabled: 
     repo["enabled"] = values
 
 
-def locate_autohotkey() -> Path:
+def locate_autohotkey(explicit: Path | None = None) -> Path:
+    if explicit:
+        explicit = explicit.expanduser().resolve()
+        if explicit.is_file():
+            return explicit
+        raise ManagerError(f"The AutoHotkey executable used to launch the manager no longer exists: {explicit}")
+
+    local_app_data = Path(os.environ.get("LOCALAPPDATA", ""))
+    user_profile = Path(os.environ.get("USERPROFILE", ""))
     candidates = [
         Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "AutoHotkey" / "v2" / "AutoHotkey64.exe",
         Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "AutoHotkey" / "AutoHotkey.exe",
+        local_app_data / "Programs" / "AutoHotkey" / "v2" / "AutoHotkey64.exe",
+        local_app_data / "Programs" / "AutoHotkey" / "AutoHotkey.exe",
+        user_profile / "scoop" / "apps" / "autohotkey" / "current" / "AutoHotkey.exe",
     ]
     executable = shutil.which("AutoHotkey64.exe") or shutil.which("AutoHotkey.exe")
     if executable:
@@ -404,9 +415,9 @@ def generate_loader(data_dir: Path, catalog: dict[str, Any], validation: bool = 
     return path
 
 
-def validate_loader(data_dir: Path, catalog: dict[str, Any]) -> None:
+def validate_loader(data_dir: Path, catalog: dict[str, Any], autohotkey: Path | None = None) -> None:
     loader = generate_loader(data_dir, catalog, validation=True)
-    executable = locate_autohotkey()
+    executable = locate_autohotkey(autohotkey)
     try:
         completed = subprocess.run(
             [str(executable), "/ErrorStdOut", str(loader)],
@@ -422,10 +433,10 @@ def validate_loader(data_dir: Path, catalog: dict[str, Any]) -> None:
         raise ManagerError((completed.stdout or completed.stderr or "AutoHotkey validation failed").strip())
 
 
-def activate(data_dir: Path, catalog: dict[str, Any]) -> dict[str, Any]:
-    validate_loader(data_dir, catalog)
+def activate(data_dir: Path, catalog: dict[str, Any], autohotkey: Path | None = None) -> dict[str, Any]:
+    validate_loader(data_dir, catalog, autohotkey)
     loader = generate_loader(data_dir, catalog)
-    executable = locate_autohotkey()
+    executable = locate_autohotkey(autohotkey)
     subprocess.Popen(
         [str(executable), str(loader)],
         cwd=loader.parent,
@@ -439,7 +450,13 @@ def activate(data_dir: Path, catalog: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def launch_standalone(data_dir: Path, catalog: dict[str, Any], repo_id: str, script_id: str) -> dict[str, Any]:
+def launch_standalone(
+    data_dir: Path,
+    catalog: dict[str, Any],
+    repo_id: str,
+    script_id: str,
+    autohotkey: Path | None = None,
+) -> dict[str, Any]:
     repo = find_repo(catalog, repo_id)
     manifest, _ = read_manifest(data_dir, repo)
     for script in manifest.get("scripts", []):
@@ -447,7 +464,7 @@ def launch_standalone(data_dir: Path, catalog: dict[str, Any], repo_id: str, scr
             if script.get("type", "standalone") != "standalone":
                 raise ManagerError("Only standalone scripts can be launched separately")
             path = safe_child(repo_path(data_dir, repo), str(script["path"]), "Script path")
-            executable = locate_autohotkey()
+            executable = locate_autohotkey(autohotkey)
             subprocess.Popen(
                 [str(executable), str(path)],
                 cwd=path.parent,
@@ -463,6 +480,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--data-dir", type=Path, required=True)
     parser.add_argument("--response", type=Path)
     parser.add_argument("--table", type=Path)
+    parser.add_argument("--autohotkey", type=Path)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     subparsers.add_parser("init")
@@ -564,12 +582,12 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
         save_catalog(catalog_path, catalog)
         return {"message": f"{'Enabled' if args.command == 'enable' else 'Disabled'} {args.repo_id}/{args.script_id}"}
     if args.command == "validate":
-        validate_loader(data_dir, catalog)
+        validate_loader(data_dir, catalog, args.autohotkey)
         return {"message": "Enabled include-mode scripts passed AutoHotkey validation"}
     if args.command == "activate":
-        return activate(data_dir, catalog)
+        return activate(data_dir, catalog, args.autohotkey)
     if args.command == "launch":
-        return launch_standalone(data_dir, catalog, args.repo_id, args.script_id)
+        return launch_standalone(data_dir, catalog, args.repo_id, args.script_id, args.autohotkey)
     raise ManagerError(f"Unsupported command: {args.command}")
 
 

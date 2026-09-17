@@ -70,7 +70,7 @@ ResizeManager(guiObj, minMax, width, height) {
 BackendCommandPrefix(responsePath, tablePath := "") {
     backend := A_ScriptDir "\manager.py"
     dataDir := ManagerDataDir()
-    command := 'uv run --script "' backend '" --data-dir "' dataDir '" --response "' responsePath '"'
+    command := 'uv run --script "' backend '" --data-dir "' dataDir '" --response "' responsePath '" --autohotkey "' A_AhkPath '"'
     if (tablePath != "")
         command .= ' --table "' tablePath '"'
     return command
