@@ -88,9 +88,8 @@ newer Remote Desktop clients (`msrdc.exe` and `msrdcw.exe`), and Omnissa/VMware
 Horizon Client (`horizon-client.exe`, plus the legacy `vmware-view.exe`). Focus another application to restore local
 hotkeys. Windows+Alt+S also toggles Remote Mode manually and remains available
 while managed hotkeys are paused. Both the process list and toggle are editable
-in **Settings**. A notification appears whenever automatic detection or the
-manual override changes Remote Mode, including transitions where another mode
-continues to keep managed hotkeys paused.
+in **Settings**. Remote Mode transitions are silent; AutoHotkey's suspended
+tray icon provides the unobtrusive status indicator.
 
 ## Repository manifest
 

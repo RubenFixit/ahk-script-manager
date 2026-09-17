@@ -138,8 +138,7 @@ class LoaderSettingsTests(unittest.TestCase):
             self.assertIn('"mstsc.exe"', content)
             self.assertIn('"vmware-view.exe"', content)
             self.assertIn('"horizon-client.exe"', content)
-            self.assertIn("Remote client detected", content)
-            self.assertIn("Manual Remote Mode changed", content)
+            self.assertNotIn("TrayTip(", content)
 
     def test_invalid_manager_hotkey_is_rejected(self) -> None:
         with self.assertRaises(manager.ManagerError):
