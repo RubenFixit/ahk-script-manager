@@ -4,6 +4,7 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "manager.py"
@@ -81,6 +82,37 @@ type = "standalone"
             repo = {"id": "test", "url": str(root), "local": True, "manifest": "ahk-library.toml"}
             manifest, _ = manager.read_manifest(root / "data", repo)
             self.assertEqual([script["id"] for script in manifest["scripts"]], ["one", "two"])
+
+
+class SelfUpdateTests(unittest.TestCase):
+    def test_update_check_reports_fast_forward_update(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / ".git").mkdir()
+
+            def fake_run(command: list[str], cwd: Path | None = None) -> str:
+                joined = " ".join(command)
+                if "--symbolic-full-name" in command:
+                    return "origin/main"
+                if joined.endswith("rev-parse HEAD"):
+                    return "local"
+                if joined.endswith("rev-parse origin/main"):
+                    return "remote"
+                if command[1] == "merge-base":
+                    return "local"
+                return ""
+
+            with patch.object(manager, "manager_repo_path", return_value=root), patch.object(manager, "run", side_effect=fake_run):
+                result = manager.check_manager_update()
+            self.assertTrue(result["update_available"])
+
+    def test_self_update_refuses_local_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / ".git").mkdir()
+            with patch.object(manager, "manager_repo_path", return_value=root), patch.object(manager, "run", return_value=" M manager.py"):
+                with self.assertRaisesRegex(manager.ManagerError, "local changes"):
+                    manager.update_manager()
 
 
 if __name__ == "__main__":

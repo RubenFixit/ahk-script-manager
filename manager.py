@@ -196,6 +196,39 @@ def git_commit(path: Path) -> str:
         return ""
 
 
+def manager_repo_path() -> Path:
+    return Path(__file__).resolve().parent
+
+
+def check_manager_update() -> dict[str, Any]:
+    root = manager_repo_path()
+    if not (root / ".git").is_dir():
+        return {"message": "Automatic updates are unavailable because this is not a Git clone", "update_available": False}
+    run(["git", "fetch", "--quiet", "origin"], root)
+    try:
+        upstream = run(["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"], root)
+    except ManagerError as exc:
+        raise ManagerError("The manager's current branch has no upstream branch") from exc
+    local = run(["git", "rev-parse", "HEAD"], root)
+    remote = run(["git", "rev-parse", upstream], root)
+    available = local != remote and run(["git", "merge-base", local, remote], root) == local
+    message = "A Script Manager update is available" if available else "Script Manager is up to date"
+    return {"message": message, "update_available": available}
+
+
+def update_manager() -> dict[str, Any]:
+    root = manager_repo_path()
+    if not (root / ".git").is_dir():
+        raise ManagerError("Automatic updates require a Git clone of the Script Manager")
+    if run(["git", "status", "--porcelain"], root):
+        raise ManagerError("The Script Manager has local changes; update it manually to avoid overwriting them")
+    before = run(["git", "rev-parse", "HEAD"], root)
+    run(["git", "pull", "--ff-only"], root)
+    after = run(["git", "rev-parse", "HEAD"], root)
+    message = "Script Manager updated successfully" if before != after else "Script Manager is already up to date"
+    return {"message": message, "updated": before != after}
+
+
 def synchronize(data_dir: Path, catalog: dict[str, Any], state: dict[str, Any], repo_id: str) -> dict[str, Any]:
     repo = find_repo(catalog, repo_id)
     root = repo_path(data_dir, repo)
@@ -517,6 +550,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     subparsers.add_parser("validate")
     subparsers.add_parser("activate")
+    subparsers.add_parser("self-update-check")
+    subparsers.add_parser("self-update")
     return parser
 
 
@@ -586,6 +621,10 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
         return {"message": "Enabled include-mode scripts passed AutoHotkey validation"}
     if args.command == "activate":
         return activate(data_dir, catalog, args.autohotkey)
+    if args.command == "self-update-check":
+        return check_manager_update()
+    if args.command == "self-update":
+        return update_manager()
     if args.command == "launch":
         return launch_standalone(data_dir, catalog, args.repo_id, args.script_id, args.autohotkey)
     raise ManagerError(f"Unsupported command: {args.command}")

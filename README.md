@@ -30,6 +30,11 @@ Run `manager.ahk` with AutoHotkey v2. Its machine-local catalog, managed clones,
 generated loader, and rollback state are stored under
 `%LOCALAPPDATA%\AhkScriptManager`.
 
+On startup, the manager quietly checks its Git upstream for a newer revision.
+When an update is available, it asks for confirmation before installing it and
+restarting. It never installs an update without approval. Automatic updates
+require a Git clone and are blocked when the manager has local changes.
+
 Use **Add source** to register either a Git URL or an existing local clone that
 publishes one or more AutoHotkey scripts.
 Remote repository IDs are derived from their namespace and repository name, so

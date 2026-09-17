@@ -17,6 +17,7 @@ A_TrayMenu.Default := "Open Script Manager"
 
 InitializeManager()
 ShowManager()
+SetTimer(CheckForManagerUpdate, -1000)
 
 InitializeManager() {
     result := RunBackend("init")
@@ -95,7 +96,26 @@ RunBackend(arguments, tablePath := "") {
     repoId := ""
     if RegExMatch(payload, 's)"repo_id"\s*:\s*"((?:\\.|[^"\\])*)"', &repoMatch)
         repoId := JsonUnescape(repoMatch[1])
-    return {ok: !!ok, message: message, repoId: repoId, exitCode: exitCode}
+    updateAvailable := RegExMatch(payload, '"update_available"\s*:\s*true')
+    updated := RegExMatch(payload, '"updated"\s*:\s*true')
+    return {ok: !!ok, message: message, repoId: repoId, updateAvailable: !!updateAvailable, updated: !!updated, exitCode: exitCode}
+}
+
+CheckForManagerUpdate() {
+    result := RunBackend("self-update-check")
+    if !result.ok || !result.updateAvailable
+        return
+    prompt := "A new version of AutoHotkey Script Manager is available.`n`nInstall it now and restart the manager?"
+    if MsgBox(prompt, "Script Manager update", "YesNo Icon?") != "Yes"
+        return
+    updateResult := RunBackend("self-update")
+    if !updateResult.ok {
+        MsgBox(updateResult.message, "Script Manager update", "Iconx")
+        return
+    }
+    MsgBox(updateResult.message ". The manager will now restart.", "Script Manager update", "Iconi")
+    Run('"' A_AhkPath '" "' A_ScriptFullPath '"')
+    ExitApp()
 }
 
 JsonUnescape(value) {
