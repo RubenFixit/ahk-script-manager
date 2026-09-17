@@ -301,8 +301,44 @@ def catalog_rows(data_dir: Path, catalog: dict[str, Any]) -> list[dict[str, str]
     return rows
 
 
+def source_rows(data_dir: Path, catalog: dict[str, Any]) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for repo in catalog.get("repositories", []):
+        root = repo_path(data_dir, repo)
+        source_name = str(repo.get("id", ""))
+        status = "local" if is_local_repo(repo) else ("ready" if (root / ".git").exists() else "not synced")
+        try:
+            manifest, _ = read_manifest(data_dir, repo)
+            source_name = str(manifest.get("library", {}).get("name", source_name))
+        except ManagerError as exc:
+            status = str(exc)
+        rows.append(
+            {
+                "source_id": str(repo.get("id", "")),
+                "source_name": source_name,
+                "status": status,
+                "ref": str(repo.get("ref", "")) or "default",
+                "revision": git_commit(root)[:12] if root.is_dir() else "",
+                "source_path": str(root),
+                "url": str(repo.get("url", "")),
+                "trusted": "yes" if repo.get("trusted", False) else "no",
+            }
+        )
+    return rows
+
+
 def write_table(path: Path, rows: list[dict[str, str]]) -> None:
     columns = ("repo_id", "repo_name", "script_id", "script_name", "type", "enabled", "status", "repo_path")
+    lines = ["\t".join(columns)]
+    for row in rows:
+        values = [str(row.get(column, "")).replace("\t", " ").replace("\r", " ").replace("\n", " ") for column in columns]
+        lines.append("\t".join(values))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def write_source_table(path: Path, rows: list[dict[str, str]]) -> None:
+    columns = ("source_id", "source_name", "status", "ref", "revision", "source_path", "url", "trusted")
     lines = ["\t".join(columns)]
     for row in rows:
         values = [str(row.get(column, "")).replace("\t", " ").replace("\r", " ").replace("\n", " ") for column in columns]
@@ -431,6 +467,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     subparsers.add_parser("init")
     subparsers.add_parser("list")
+    subparsers.add_parser("sources")
 
     add = subparsers.add_parser("add")
     add.add_argument("repo_id")
@@ -481,6 +518,11 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
         if args.table:
             write_table(args.table, rows)
         return {"message": f"Found {len(rows)} script entries", "rows": rows}
+    if args.command == "sources":
+        rows = source_rows(data_dir, catalog)
+        if args.table:
+            write_source_table(args.table, rows)
+        return {"message": f"Found {len(rows)} module sources", "rows": rows}
     if args.command in {"add", "add-url"}:
         repo_id = args.repo_id or derive_repo_id(args.url, args.local)
         validate_repo_id(repo_id)

@@ -35,6 +35,36 @@ Choose trust only for repositories whose scripts may be combined into the
 generated `#Include` loader. Third-party scripts should normally use
 `type = "standalone"` in their manifest.
 
+## Using the interface
+
+The main window manages modules discovered from all configured sources:
+
+- **Reload** rereads the local catalog and manifests. It does not download or
+  start anything.
+- **Manage sources** opens the source-level window described below.
+- **Enable/Disable** changes whether the selected module belongs in the desired
+  active configuration. It does not immediately restart running scripts.
+- **Apply changes** validates the enabled include-mode modules, generates their
+  combined loader, and starts or restarts that loader. Use this after changing
+  which include-mode modules are enabled.
+- **Launch standalone** starts the selected `standalone` module in its own
+  AutoHotkey process. Include-mode modules are applied with **Apply changes**.
+- **Open folder** opens the selected module's source directory.
+
+The **Manage Module Sources** window lists each repository once:
+
+- **Add source** registers a Git URL or local folder, derives a stable source
+  ID, and performs its initial synchronization.
+- **Reload** rereads source status without downloading changes.
+- **Sync** fetches and validates the selected managed source at its configured
+  branch, tag, or commit. For a local source, it validates the current folder.
+- **Roll back** returns a managed clone to its previously active revision.
+- **Remove** removes the source from the catalog but retains downloaded files.
+- **Open folder** opens the selected source directory.
+
+The enable/apply split is intentional: enablement edits the desired module set,
+while applying performs validation and changes the running include-mode loader.
+
 ## Repository manifest
 
 Repositories publish an `ahk-library.toml` file. A repository may expose any
