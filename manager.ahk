@@ -110,18 +110,65 @@ RunBackend(arguments, tablePath := "") {
 CheckForManagerUpdate() {
     result := RunBackend("self-update-check")
     if !result.ok || !result.updateAvailable
-        return
+        return CheckSourcesForUpdates()
     prompt := "A new version of AutoHotkey Script Manager is available.`n`nInstall it now and restart the manager?"
     if MsgBox(prompt, "Script Manager update", "YesNo Icon?") != "Yes"
-        return
+        return CheckSourcesForUpdates()
     updateResult := RunBackend("self-update")
     if !updateResult.ok {
         MsgBox(updateResult.message, "Script Manager update", "Iconx")
-        return
+        return CheckSourcesForUpdates()
     }
     MsgBox(updateResult.message ". The manager will now restart.", "Script Manager update", "Iconi")
     Run('"' A_AhkPath '" "' A_ScriptFullPath '"')
     ExitApp()
+}
+
+CheckSourcesForUpdates() {
+    tablePath := A_Temp "\ahk-script-manager-updates-" A_TickCount ".tsv"
+    try FileDelete(tablePath)
+    result := RunBackend("sources", tablePath)
+    if !result.ok || !FileExist(tablePath) {
+        try FileDelete(tablePath)
+        return
+    }
+
+    outdated := []
+    lines := StrSplit(Trim(FileRead(tablePath, "UTF-8"), "`r`n"), "`n")
+    for index, line in lines {
+        if (index = 1 || Trim(line) = "")
+            continue
+        fields := StrSplit(Trim(line, "`r"), "`t")
+        while fields.Length < 9
+            fields.Push("")
+        localRevision := fields[5]
+        remoteRevision := fields[6]
+        if (localRevision != "" && remoteRevision != "" && localRevision != remoteRevision)
+            outdated.Push({id: fields[1], name: fields[2]})
+    }
+    try FileDelete(tablePath)
+    if !outdated.Length
+        return
+
+    names := ""
+    for item in outdated
+        names .= (names = "" ? "" : "`n") "- " item.name
+    prompt := "Updates are available for:`n`n" names "`n`nSynchronize these sources now?"
+    if MsgBox(prompt, "Script sources updated", "YesNo Icon?") != "Yes"
+        return
+
+    failures := ""
+    for item in outdated {
+        syncResult := RunBackend("sync " QuoteArg(item.id))
+        if !syncResult.ok
+            failures .= (failures = "" ? "" : "`n") "- " item.name ": " syncResult.message
+    }
+    ReloadSources()
+    ReloadModules()
+    if failures != ""
+        MsgBox("Some sources failed to synchronize:`n`n" failures, "Script sources updated", "Iconx")
+    else
+        SetStatus("Synchronized " outdated.Length " script source(s).")
 }
 
 JsonUnescape(value) {
@@ -233,15 +280,16 @@ ShowSources() {
 
     SourcesGui := Gui("+Resize", "Manage Script Sources")
     SourcesGui.SetFont("s10", "Segoe UI")
-    SourcesList := SourcesGui.AddListView("xm ym w900 r14", ["Source ID", "Source", "Status", "Ref", "Revision", "Location", "URL", "Trusted"])
+    SourcesList := SourcesGui.AddListView("xm ym w900 r14", ["Source ID", "Source", "Status", "Ref", "Local Revision", "Remote Revision", "Location", "URL", "Trusted"])
     SourcesList.ModifyCol(1, 0)
-    SourcesList.ModifyCol(2, 175)
-    SourcesList.ModifyCol(3, 170)
-    SourcesList.ModifyCol(4, 90)
-    SourcesList.ModifyCol(5, 100)
-    SourcesList.ModifyCol(6, 235)
-    SourcesList.ModifyCol(7, 0)
-    SourcesList.ModifyCol(8, 70)
+    SourcesList.ModifyCol(2, 160)
+    SourcesList.ModifyCol(3, 140)
+    SourcesList.ModifyCol(4, 75)
+    SourcesList.ModifyCol(5, 95)
+    SourcesList.ModifyCol(6, 95)
+    SourcesList.ModifyCol(7, 190)
+    SourcesList.ModifyCol(8, 0)
+    SourcesList.ModifyCol(9, 65)
 
     SourcesGui.AddButton("xm w95", "&Add source").OnEvent("Click", (*) => AddSource())
     SourcesGui.AddButton("x+8 w85", "&Reload").OnEvent("Click", (*) => ReloadSources())
@@ -292,7 +340,7 @@ ReloadSources() {
             if (index = 1 || Trim(line) = "")
                 continue
             fields := StrSplit(Trim(line, "`r"), "`t")
-            while fields.Length < 8
+            while fields.Length < 9
                 fields.Push("")
             SourcesList.Add(, fields*)
         }
@@ -310,7 +358,7 @@ SelectedSource() {
     }
     return {
         sourceId: SourcesList.GetText(row, 1),
-        path: SourcesList.GetText(row, 6)
+        path: SourcesList.GetText(row, 7)
     }
 }
 

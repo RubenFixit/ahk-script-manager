@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -68,6 +69,84 @@ class CatalogTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             with self.assertRaises(manager.ManagerError):
                 manager.safe_child(Path(directory), "../outside.ahk", "Script")
+
+
+class BackendRobustnessTests(unittest.TestCase):
+    def test_unexpected_exception_still_produces_a_response(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            response_path = Path(directory) / "response.json"
+            argv = ["manager.py", "--data-dir", directory, "--response", str(response_path), "list"]
+            with patch.object(manager.sys, "argv", argv), \
+                    patch.object(manager, "execute", side_effect=PermissionError("Access is denied")):
+                exit_code = manager.main()
+
+            self.assertEqual(exit_code, 1)
+            payload = json.loads(response_path.read_text(encoding="utf-8"))
+            self.assertFalse(payload["ok"])
+            self.assertIn("Access is denied", payload["message"])
+
+
+class RepositoryLookupTests(unittest.TestCase):
+    def test_find_repo_locates_entry_not_first_in_list(self) -> None:
+        catalog = {"repositories": [{"id": "a"}, {"id": "b"}]}
+        self.assertEqual(manager.find_repo(catalog, "b")["id"], "b")
+
+    def test_find_repo_raises_for_unknown_id(self) -> None:
+        catalog = {"repositories": [{"id": "a"}]}
+        with self.assertRaises(manager.ManagerError):
+            manager.find_repo(catalog, "missing")
+
+
+class LocalSyncTests(unittest.TestCase):
+    @staticmethod
+    def _catalog(root: Path) -> dict:
+        return {"repositories": [{"id": "lib", "url": str(root), "local": True, "manifest": "ahk-library.toml"}]}
+
+    def test_pulls_when_behind_and_working_tree_is_clean(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / ".git").mkdir()
+            commits = iter(["local1", "local2"])
+
+            def fake_run(command: list[str], cwd: Path | None = None) -> str:
+                if command[:2] == ["git", "symbolic-ref"]:
+                    raise manager.ManagerError("no upstream")
+                if command[:3] == ["git", "rev-parse", "--verify"]:
+                    return "remote1"
+                if command[:2] == ["git", "status"]:
+                    return ""
+                return ""
+
+            with patch.object(manager, "git_commit", side_effect=lambda _: next(commits)), \
+                    patch.object(manager, "run", side_effect=fake_run), \
+                    patch.object(manager, "read_manifest", return_value=({}, root / "ahk-library.toml")):
+                result = manager.synchronize(root / "data", self._catalog(root), {}, "lib")
+
+            self.assertIn("Pulled latest changes", result["message"])
+            self.assertEqual(result["commit"], "local2")
+
+    def test_reports_dirty_working_tree_instead_of_pulling(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / ".git").mkdir()
+
+            def fake_run(command: list[str], cwd: Path | None = None) -> str:
+                if command[:2] == ["git", "symbolic-ref"]:
+                    raise manager.ManagerError("no upstream")
+                if command[:3] == ["git", "rev-parse", "--verify"]:
+                    return "remote1"
+                if command[:2] == ["git", "status"]:
+                    return " M scripts/one.ahk"
+                if command[:2] == ["git", "pull"]:
+                    self.fail("should not pull with a dirty working tree")
+                return ""
+
+            with patch.object(manager, "git_commit", return_value="local1"), \
+                    patch.object(manager, "run", side_effect=fake_run), \
+                    patch.object(manager, "read_manifest", return_value=({}, root / "ahk-library.toml")):
+                result = manager.synchronize(root / "data", self._catalog(root), {}, "lib")
+
+            self.assertIn("has local changes", result["message"])
 
 
 class ManifestTests(unittest.TestCase):

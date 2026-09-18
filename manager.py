@@ -133,7 +133,7 @@ def find_repo(catalog: dict[str, Any], repo_id: str) -> dict[str, Any]:
     for repo in catalog.get("repositories", []):
         if repo.get("id") == repo_id:
             return repo
-        raise ManagerError(f"Script source is not in the catalog: {repo_id}")
+    raise ManagerError(f"Script source is not in the catalog: {repo_id}")
 
 
 def validate_repo_id(repo_id: str) -> None:
@@ -258,24 +258,9 @@ def update_manager() -> dict[str, Any]:
     return {"message": message, "updated": before != after}
 
 
-def synchronize(data_dir: Path, catalog: dict[str, Any], state: dict[str, Any], repo_id: str) -> dict[str, Any]:
-    repo = find_repo(catalog, repo_id)
-    root = repo_path(data_dir, repo)
-    if is_local_repo(repo):
-        if not root.is_dir():
-            raise ManagerError(f"Local script source does not exist: {root}")
-        commit = git_commit(root)
-        read_manifest(data_dir, repo)
-        return {"message": f"Validated local script source {repo_id}", "commit": commit}
-
-    root.parent.mkdir(parents=True, exist_ok=True)
-    if not (root / ".git").exists():
-        if root.exists():
-            raise ManagerError(f"Managed source directory is not a Git clone: {root}")
-        run(["git", "clone", "--no-checkout", str(repo["url"]), str(root)])
-
-    previous = git_commit(root)
-    run(["git", "fetch", "origin", "--tags", "--prune"], root)
+def resolve_remote_commit(root: Path, repo: dict[str, Any]) -> str:
+    """Fetch origin and resolve the repo's configured ref to a remote commit SHA."""
+    run(["git", "fetch", "--quiet", "origin", "--tags", "--prune"], root)
     requested_ref = str(repo.get("ref", "")).strip()
     candidates = []
     if requested_ref:
@@ -286,16 +271,60 @@ def synchronize(data_dir: Path, catalog: dict[str, Any], state: dict[str, Any], 
         except ManagerError:
             candidates.append("origin/main")
 
-    target = ""
     for candidate in candidates:
         try:
-            target = run(["git", "rev-parse", "--verify", f"{candidate}^{{commit}}"], root)
-            break
+            return run(["git", "rev-parse", "--verify", f"{candidate}^{{commit}}"], root)
         except ManagerError:
             continue
-    if not target:
-        raise ManagerError(f"Could not resolve source revision: {requested_ref or 'remote default'}")
+    raise ManagerError(f"Could not resolve source revision: {requested_ref or 'remote default'}")
 
+
+def repo_revisions(root: Path, repo: dict[str, Any]) -> tuple[str, str, str]:
+    """Return (local_commit, remote_commit, remote_check_error) without changing checkout state."""
+    if not root.is_dir():
+        return "", "", ""
+    local_commit = git_commit(root)
+    if not (root / ".git").exists():
+        return local_commit, "", ""
+    try:
+        return local_commit, resolve_remote_commit(root, repo), ""
+    except ManagerError as exc:
+        return local_commit, "", str(exc)
+
+
+def synchronize(data_dir: Path, catalog: dict[str, Any], state: dict[str, Any], repo_id: str) -> dict[str, Any]:
+    repo = find_repo(catalog, repo_id)
+    root = repo_path(data_dir, repo)
+    if is_local_repo(repo):
+        if not root.is_dir():
+            raise ManagerError(f"Local script source does not exist: {root}")
+        commit = git_commit(root)
+        read_manifest(data_dir, repo)
+        if (root / ".git").exists():
+            try:
+                remote_commit = resolve_remote_commit(root, repo)
+            except ManagerError:
+                remote_commit = ""
+            if remote_commit and remote_commit != commit:
+                if run(["git", "status", "--porcelain"], root):
+                    return {
+                        "message": f"{repo_id} is behind its remote origin but has local changes; commit or stash them, then sync again",
+                        "commit": commit,
+                    }
+                run(["git", "pull", "--ff-only"], root)
+                commit = git_commit(root)
+                read_manifest(data_dir, repo)
+                return {"message": f"Pulled latest changes for local script source {repo_id}", "commit": commit}
+        return {"message": f"Validated local script source {repo_id}", "commit": commit}
+
+    root.parent.mkdir(parents=True, exist_ok=True)
+    if not (root / ".git").exists():
+        if root.exists():
+            raise ManagerError(f"Managed source directory is not a Git clone: {root}")
+        run(["git", "clone", "--no-checkout", str(repo["url"]), str(root)])
+
+    previous = git_commit(root)
+    target = resolve_remote_commit(root, repo)
     run(["git", "checkout", "--detach", target], root)
     read_manifest(data_dir, repo)
     repo_state = state.setdefault("repositories", {}).setdefault(repo_id, {})
@@ -374,13 +403,17 @@ def source_rows(data_dir: Path, catalog: dict[str, Any]) -> list[dict[str, str]]
             source_name = str(manifest.get("library", {}).get("name", source_name))
         except ManagerError as exc:
             status = str(exc)
+        local_commit, remote_commit, remote_error = repo_revisions(root, repo)
+        if remote_error and status in {"local", "ready"}:
+            status = f"{status} (remote check failed: {remote_error})"
         rows.append(
             {
                 "source_id": str(repo.get("id", "")),
                 "source_name": source_name,
                 "status": status,
                 "ref": str(repo.get("ref", "")) or "default",
-                "revision": git_commit(root)[:12] if root.is_dir() else "",
+                "local_revision": local_commit[:12],
+                "remote_revision": remote_commit[:12],
                 "source_path": str(root),
                 "url": str(repo.get("url", "")),
                 "trusted": "yes" if repo.get("trusted", False) else "no",
@@ -400,7 +433,7 @@ def write_table(path: Path, rows: list[dict[str, str]]) -> None:
 
 
 def write_source_table(path: Path, rows: list[dict[str, str]]) -> None:
-    columns = ("source_id", "source_name", "status", "ref", "revision", "source_path", "url", "trusted")
+    columns = ("source_id", "source_name", "status", "ref", "local_revision", "remote_revision", "source_path", "url", "trusted")
     lines = ["\t".join(columns)]
     for row in rows:
         values = [str(row.get(column, "")).replace("\t", " ").replace("\r", " ").replace("\n", " ") for column in columns]
@@ -764,6 +797,9 @@ def main() -> int:
         exit_code = 0
     except (ManagerError, tomllib.TOMLDecodeError, json.JSONDecodeError) as exc:
         result = {"ok": False, "message": str(exc)}
+        exit_code = 1
+    except Exception as exc:  # noqa: BLE001 - top-level CLI boundary must always respond
+        result = {"ok": False, "message": f"Unexpected backend error: {exc}"}
         exit_code = 1
     payload = json.dumps(result, indent=2) + "\n"
     if args.response:

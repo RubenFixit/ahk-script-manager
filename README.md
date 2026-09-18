@@ -35,6 +35,10 @@ When an update is available, it asks for confirmation before installing it and
 restarting. It never installs an update without approval. Automatic updates
 require a Git clone and are blocked when the manager has local changes.
 
+It then checks every configured source against its Git remote the same way.
+If any source is behind, it lists them and asks for confirmation before
+synchronizing. Declining leaves every source untouched.
+
 Use **Add source** to register either a Git URL or an existing local clone that
 publishes one or more AutoHotkey scripts.
 Remote repository IDs are derived from their namespace and repository name, so
@@ -67,13 +71,21 @@ The main window manages scripts discovered from all configured sources:
   **Windows+Alt+S** (`#!s`). Leave either shortcut blank to disable it. The
   window includes a compact AutoHotkey shortcut-notation cheat sheet.
 
-The **Manage Script Sources** window lists each repository once:
+The **Manage Script Sources** window lists each repository once, including its
+local revision (the commit currently checked out) and remote revision (the
+latest commit on its configured branch, tag, or commit after fetching). The
+two differ when a source is behind its remote; the remote column is blank when
+a source has no Git remote to compare against or the remote check fails (for
+example, while offline).
 
 - **Add source** registers a Git URL or local folder, derives a stable source
   ID, and performs its initial synchronization.
-- **Reload** rereads source status without downloading changes.
+- **Reload** rereads source status, fetching each source's remote to refresh
+  its remote revision.
 - **Sync** fetches and validates the selected managed source at its configured
-  branch, tag, or commit. For a local source, it validates the current folder.
+  branch, tag, or commit. For a local source, it fetches and, if the source is
+  behind with a clean working tree, fast-forwards it to match; a source with
+  local changes is reported instead of being overwritten.
 - **Roll back** returns a managed clone to its previously active revision.
 - **Remove** removes the source from the catalog but retains downloaded files.
 - **Open folder** opens the selected source directory.
